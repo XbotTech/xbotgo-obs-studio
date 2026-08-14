@@ -44,6 +44,7 @@
 #include <utility/WhatsNewInfoThread.hpp>
 #endif
 #include <wizards/AutoConfig.hpp>
+#include <xbotgo/dialogs/XBotGoDeviceSearchDialog.hpp>
 
 #include <qt-wrappers.hpp>
 
@@ -675,6 +676,12 @@ void OBSBasic::on_idianPlayground_triggered()
 	playground.show();
 	playground.exec();
 #endif
+}
+
+void OBSBasic::on_actionXBotGoSearchDevices_triggered()
+{
+	XBotGo::DeviceSearchDialog dialog(this);
+	dialog.exec();
 }
 
 void OBSBasic::on_actionShowAbout_triggered()

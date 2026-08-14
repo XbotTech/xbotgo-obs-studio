@@ -1,0 +1,9 @@
+target_sources(
+        obs-studio
+        PRIVATE
+        xbotgo/dialogs/XBotGoDeviceSearchDialog.cpp
+        xbotgo/dialogs/XBotGoDeviceSearchDialog.hpp
+        xbotgo/models/XBotGoDevice.hpp
+        xbotgo/models/XBotGoSsdpParser.cpp
+        xbotgo/models/XBotGoSsdpParser.hpp
+)
