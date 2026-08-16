@@ -117,10 +117,11 @@ static bool is_local_file_modified(obs_properties_t *props, obs_property_t *prop
 static void ffmpeg_source_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_bool(settings, "is_local_file", true);
-	obs_data_set_default_bool(settings, "looping", false);
+	obs_data_set_default_bool(settings, "looping", true);
 	obs_data_set_default_bool(settings, "clear_on_media_end", true);
 	obs_data_set_default_bool(settings, "restart_on_activate", true);
 	obs_data_set_default_bool(settings, "linear_alpha", false);
+	obs_data_set_default_bool(settings, "hw_decode", true);
 	obs_data_set_default_int(settings, "reconnect_delay_sec", 10);
 	obs_data_set_default_int(settings, "buffering_mb", 2);
 	obs_data_set_default_int(settings, "speed_percent", 100);
