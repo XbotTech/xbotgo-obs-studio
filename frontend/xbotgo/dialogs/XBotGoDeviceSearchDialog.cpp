@@ -4,6 +4,7 @@
 #include <QAbstractItemView>
 #include <QDialogButtonBox>
 #include <QHeaderView>
+#include <QHideEvent>
 #include <QNetworkDatagram>
 #include <QPushButton>
 #include <QShowEvent>
@@ -21,6 +22,31 @@ DeviceSearchDialog::DeviceSearchDialog(QWidget *parent)
 	: QDialog(parent),
 	  groupAddress4(QStringLiteral(SSDP_QUERY_IP))
 {
+	deviceTable = new QTableView(this);
+	deviceModel = new QStandardItemModel(0, 4, this);
+	deviceModel->setHorizontalHeaderLabels(
+		{tr("Device ID"), tr("IP Address"), tr("MQTT Port"), tr("Protocol Version")});
+	deviceTable->setModel(deviceModel);
+	deviceTable->setSelectionBehavior(QAbstractItemView::SelectRows);
+	deviceTable->setSelectionMode(QAbstractItemView::SingleSelection);
+	deviceTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+	deviceTable->horizontalHeader()->setStretchLastSection(true);
+
+	auto refreshButton = new QPushButton(tr("&Refresh"));
+	auto buttonBox = new QDialogButtonBox;
+	buttonBox->addButton(refreshButton, QDialogButtonBox::ActionRole);
+
+	connect(refreshButton, &QPushButton::clicked, this, &DeviceSearchDialog::refreshSearch);
+	connect(&timer, &QTimer::timeout, this, &DeviceSearchDialog::sendDatagram);
+
+	auto mainLayout = new QVBoxLayout;
+	mainLayout->addWidget(deviceTable);
+	mainLayout->addWidget(buttonBox);
+	setLayout(mainLayout);
+
+	setMinimumSize(600, 400);
+	resize(800, 500);
+
 	socket4 = new QUdpSocket(this);
 	if (!socket4->bind(QHostAddress::AnyIPv4, SSDP_PORT,
 			   QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
@@ -63,38 +89,11 @@ DeviceSearchDialog::DeviceSearchDialog(QWidget *parent)
 	}
 
 	connect(socket4, &QUdpSocket::readyRead, this, &DeviceSearchDialog::readPendingDatagrams);
-
-	deviceTable = new QTableView(this);
-	deviceModel = new QStandardItemModel(0, 4, this);
-	deviceModel->setHorizontalHeaderLabels(
-		{tr("Device ID"), tr("IP Address"), tr("MQTT Port"), tr("Protocol Version")});
-	deviceTable->setModel(deviceModel);
-	deviceTable->setSelectionBehavior(QAbstractItemView::SelectRows);
-	deviceTable->setSelectionMode(QAbstractItemView::SingleSelection);
-	deviceTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
-	deviceTable->horizontalHeader()->setStretchLastSection(true);
-
-	startButton = new QPushButton(tr("&Start"));
-	auto stopButton = new QPushButton(tr("&Stop"));
-	auto buttonBox = new QDialogButtonBox;
-	buttonBox->addButton(startButton, QDialogButtonBox::ActionRole);
-	buttonBox->addButton(stopButton, QDialogButtonBox::RejectRole);
-
-	connect(startButton, &QPushButton::clicked, this, &DeviceSearchDialog::startSending);
-	connect(stopButton, &QPushButton::clicked, this, &DeviceSearchDialog::stopSending);
-	connect(&timer, &QTimer::timeout, this, &DeviceSearchDialog::sendDatagram);
-
-	auto mainLayout = new QVBoxLayout;
-	mainLayout->addWidget(deviceTable);
-	mainLayout->addWidget(buttonBox);
-	setLayout(mainLayout);
-
-	setMinimumSize(600, 400);
-	resize(800, 500);
 }
 
 DeviceSearchDialog::~DeviceSearchDialog()
 {
+	stopSearch();
 	if (socket4) {
 		for (const QNetworkInterface &networkInterface : multicastInterfaces)
 			socket4->leaveMulticastGroup(groupAddress4, networkInterface);
@@ -106,20 +105,33 @@ DeviceSearchDialog::~DeviceSearchDialog()
 void DeviceSearchDialog::showEvent(QShowEvent *event)
 {
 	QDialog::showEvent(event);
+	startSearch();
 }
 
-void DeviceSearchDialog::startSending()
+void DeviceSearchDialog::hideEvent(QHideEvent *event)
+{
+	stopSearch();
+	QDialog::hideEvent(event);
+}
+
+void DeviceSearchDialog::startSearch()
 {
 	clearDevices();
-	startButton->setEnabled(false);
+	if (!socket4 || socket4->state() != QAbstractSocket::BoundState || multicastInterfaces.isEmpty())
+		return;
+
 	timer.start(3000);
 	sendDatagram();
 }
 
-void DeviceSearchDialog::stopSending()
+void DeviceSearchDialog::stopSearch()
 {
-	startButton->setEnabled(true);
 	timer.stop();
+}
+
+void DeviceSearchDialog::refreshSearch()
+{
+	startSearch();
 }
 
 void DeviceSearchDialog::sendDatagram()

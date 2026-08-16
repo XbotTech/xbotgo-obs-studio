@@ -8,7 +8,7 @@
 #include <QTimer>
 #include <QUdpSocket>
 
-class QPushButton;
+class QHideEvent;
 class QShowEvent;
 class QStandardItemModel;
 class QTableView;
@@ -24,20 +24,21 @@ public:
 
 private slots:
 	void readPendingDatagrams();
-	void startSending();
-	void stopSending();
+	void refreshSearch();
 	void sendDatagram();
 
 protected:
 	void showEvent(QShowEvent *event) override;
+	void hideEvent(QHideEvent *event) override;
 
 private:
+	void startSearch();
+	void stopSearch();
 	void updateDevice(const Device &device);
 	void clearDevices();
 
 	QTableView *deviceTable = nullptr;
 	QStandardItemModel *deviceModel = nullptr;
-	QPushButton *startButton = nullptr;
 	QUdpSocket *socket4 = nullptr;
 	QTimer timer;
 	QHostAddress groupAddress4;
