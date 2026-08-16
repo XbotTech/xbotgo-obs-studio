@@ -46,6 +46,7 @@
 #endif
 #include <widgets/AudioMixer.hpp>
 #include <widgets/OBSProjector.hpp>
+#include <xbotgo/services/XBotGoLiveStreamProvider.hpp>
 
 #include <OBSStudioAPI.hpp>
 #ifdef BROWSER_AVAILABLE
@@ -255,6 +256,7 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 
 	ui->setupUi(this);
 	ui->previewDisabledWidget->setVisible(false);
+	xbotgoLiveStreamProvider = std::make_unique<XBotGo::HardcodedLiveStreamProvider>();
 
 	/* Set up streaming connections */
 	connect(

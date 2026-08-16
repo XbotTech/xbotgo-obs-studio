@@ -72,6 +72,11 @@ enum class LogFileType;
 enum class ItemPasteType { Invalid, Reference, Duplicate, Both };
 } // namespace OBS
 
+namespace XBotGo {
+struct LiveStreamConfig;
+class LiveStreamProvider;
+} // namespace XBotGo
+
 #define SIMPLE_ENCODER_X264 "x264"
 #define SIMPLE_ENCODER_X264_LOWCPU "x264_lowcpu"
 #define SIMPLE_ENCODER_QSV "qsv"
@@ -651,6 +656,8 @@ private slots:
 	void on_idianPlayground_triggered();
 	void on_actionXBotGoSearchDevices_triggered();
 	void on_actionXBotGoStartStreaming_triggered();
+	void StartXBotGoStreaming();
+	void ApplyXBotGoLiveStreamConfig(const XBotGo::LiveStreamConfig &config);
 
 	void on_resetUI_triggered();
 
@@ -1347,6 +1354,8 @@ private slots:
 	 */
 private:
 	OBSService service;
+	std::unique_ptr<XBotGo::LiveStreamProvider> xbotgoLiveStreamProvider;
+	QString xbotgoPullUrl;
 
 	bool InitService();
 
