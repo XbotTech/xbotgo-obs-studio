@@ -272,6 +272,12 @@ static void get_audio(void *opaque, struct obs_source_audio *a)
 		FF_BLOG(LOG_INFO, "Reconnected.");
 }
 
+static void set_video_rotation(void *opaque, long rotation)
+{
+	struct ffmpeg_source *s = opaque;
+	obs_source_set_async_rotation(s->source, rotation);
+}
+
 static void media_stopped(void *opaque)
 {
 	struct ffmpeg_source *s = opaque;
@@ -290,6 +296,8 @@ static void media_stopped(void *opaque)
 
 static void ffmpeg_source_open(struct ffmpeg_source *s)
 {
+	obs_source_set_async_rotation(s->source, 0);
+
 	if (s->input && *s->input) {
 		struct mp_media_info info = {
 			.opaque = s,
@@ -297,6 +305,7 @@ static void ffmpeg_source_open(struct ffmpeg_source *s)
 			.v_preload_cb = preload_frame,
 			.v_seek_cb = seek_frame,
 			.a_cb = get_audio,
+			.v_rotation_cb = set_video_rotation,
 			.stop_cb = media_stopped,
 			.path = s->input,
 			.format = s->input_format,

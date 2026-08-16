@@ -23,6 +23,7 @@ typedef struct media_playback media_playback_t;
 
 typedef void (*mp_video_cb)(void *opaque, struct obs_source_frame *frame);
 typedef void (*mp_audio_cb)(void *opaque, struct obs_source_audio *audio);
+typedef void (*mp_video_rotation_cb)(void *opaque, long rotation);
 typedef void (*mp_stop_cb)(void *opaque);
 
 struct mp_media_info {
@@ -32,6 +33,7 @@ struct mp_media_info {
 	mp_video_cb v_preload_cb;
 	mp_video_cb v_seek_cb;
 	mp_audio_cb a_cb;
+	mp_video_rotation_cb v_rotation_cb;
 	mp_stop_cb stop_cb;
 
 	const char *path;
