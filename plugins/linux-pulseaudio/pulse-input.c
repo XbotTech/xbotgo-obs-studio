@@ -26,7 +26,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #define NSEC_PER_MSEC 1000000L
 
 #define PULSE_DATA(voidptr) struct pulse_data *data = voidptr;
-#define blog(level, msg, ...) blog(level, "pulse-input: " msg, ##__VA_ARGS__)
+#undef blog
+#define blog(level, msg, ...) blogex(level, __FILE__, __LINE__, "pulse-input: " msg, ##__VA_ARGS__)
 
 struct pulse_data {
 	obs_source_t *source;

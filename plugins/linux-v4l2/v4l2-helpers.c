@@ -23,7 +23,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include "v4l2-helpers.h"
 
-#define blog(level, msg, ...) blog(level, "v4l2-helpers: " msg, ##__VA_ARGS__)
+#undef blog
+#define blog(level, msg, ...) blogex(level, __FILE__, __LINE__, "v4l2-helpers: " msg, ##__VA_ARGS__)
 
 int_fast32_t v4l2_start_capture(int_fast32_t dev, struct v4l2_buffer_data *buf)
 {
