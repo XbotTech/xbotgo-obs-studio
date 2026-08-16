@@ -266,6 +266,12 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 	connect(
 		this, &OBSBasic::StreamingStopped, this, [this] { this->streamingStarting = false; },
 		Qt::DirectConnection);
+	connect(
+		this, &OBSBasic::StreamingPreparing, ui->actionXBotGoStartStreaming,
+		[this] { ui->actionXBotGoStartStreaming->setEnabled(false); }, Qt::DirectConnection);
+	connect(
+		this, &OBSBasic::StreamingStopped, ui->actionXBotGoStartStreaming,
+		[this] { ui->actionXBotGoStartStreaming->setEnabled(true); }, Qt::DirectConnection);
 
 	/* Set up recording connections */
 	connect(

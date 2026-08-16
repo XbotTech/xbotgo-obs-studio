@@ -684,6 +684,15 @@ void OBSBasic::on_actionXBotGoSearchDevices_triggered()
 	dialog.exec();
 }
 
+void OBSBasic::on_actionXBotGoStartStreaming_triggered()
+{
+	if (StreamingActive() || streamingStarting) {
+		return;
+	}
+
+	StreamActionTriggered();
+}
+
 void OBSBasic::on_actionShowAbout_triggered()
 {
 	if (about) {

@@ -650,6 +650,7 @@ private slots:
 	void on_stats_triggered();
 	void on_idianPlayground_triggered();
 	void on_actionXBotGoSearchDevices_triggered();
+	void on_actionXBotGoStartStreaming_triggered();
 
 	void on_resetUI_triggered();
 

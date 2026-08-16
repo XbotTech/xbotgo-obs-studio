@@ -956,6 +956,7 @@
      <string>Basic.MainMenu.XBotGo</string>
     </property>
     <addaction name="actionXBotGoSearchDevices"/>
+    <addaction name="actionXBotGoStartStreaming"/>
    </widget>
    <widget class="QMenu" name="menuDocks">
     <property name="title">
@@ -2057,6 +2058,11 @@
   <action name="actionXBotGoSearchDevices">
    <property name="text">
     <string>Basic.MainMenu.XBotGo.SearchDevices</string>
+   </property>
+  </action>
+  <action name="actionXBotGoStartStreaming">
+   <property name="text">
+    <string>Basic.MainMenu.XBotGo.StartStreaming</string>
    </property>
   </action>
   <action name="stats">
