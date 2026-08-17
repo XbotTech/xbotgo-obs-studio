@@ -743,6 +743,7 @@ void OBSBasic::ApplyXBotGoLiveStreamConfig(const XBotGo::LiveStreamConfig &confi
 	xbotgoPullUrl = config.pullUrl();
 	SetService(newService);
 	SaveService();
+	xbotgoLiveStreamProvider->startHeartbeat(this, config.taskId);
 
 	bool enteredPreparation = false;
 	const QMetaObject::Connection preparingConnection =
@@ -753,6 +754,7 @@ void OBSBasic::ApplyXBotGoLiveStreamConfig(const XBotGo::LiveStreamConfig &confi
 	disconnect(preparingConnection);
 
 	if (!enteredPreparation) {
+		xbotgoLiveStreamProvider->stopHeartbeat();
 		ui->actionXBotGoStartStreaming->setEnabled(true);
 	}
 }
