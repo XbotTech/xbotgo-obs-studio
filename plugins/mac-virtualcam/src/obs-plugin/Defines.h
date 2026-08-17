@@ -19,4 +19,5 @@
 
 #define PLUGIN_NAME "mac-virtualcam"
 
-#define blog(level, msg, ...) blog(level, "[" PLUGIN_NAME "] " msg, ##__VA_ARGS__)
+#undef blog
+#define blog(level, msg, ...) blogex(level, __FILE__, __LINE__, "[" PLUGIN_NAME "] " msg, ##__VA_ARGS__)

@@ -16,8 +16,10 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "c99defs.h"
+#define OBS_DISABLE_LOG_CALLSITE
 #include "base.h"
 #include "threading.h"
 
@@ -122,5 +124,25 @@ void blog(int log_level, const char *format, ...)
 
 	va_start(args, format);
 	blogva(log_level, format, args);
+	va_end(args);
+}
+
+void blogex(int log_level, const char *file, int line, const char *format, ...)
+{
+	const char *name = file;
+	const char *slash = strrchr(file, '/');
+	const char *backslash = strrchr(file, '\\');
+
+	if (slash || backslash) {
+		const char *separator = !slash ? backslash : !backslash ? slash : slash > backslash ? slash : backslash;
+		name = separator + 1;
+	}
+
+	char callsite_format[8192];
+	snprintf(callsite_format, sizeof(callsite_format), "[%s:%d] %s", name, line, format);
+
+	va_list args;
+	va_start(args, format);
+	blogva(log_level, callsite_format, args);
 	va_end(args);
 }
