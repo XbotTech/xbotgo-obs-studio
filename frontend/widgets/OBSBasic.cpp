@@ -272,6 +272,9 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 		this, &OBSBasic::StreamingStopping, this, [this] { xbotgoLiveStreamProvider->stopHeartbeat(); },
 		Qt::DirectConnection);
 	connect(
+		this, &OBSBasic::StreamingStopped, this, [this] { xbotgoLiveStreamProvider->stopLiveTask(this); },
+		Qt::DirectConnection);
+	connect(
 		this, &OBSBasic::StreamingPreparing, ui->actionXBotGoStartStreaming,
 		[this] { ui->actionXBotGoStartStreaming->setEnabled(false); }, Qt::DirectConnection);
 	connect(

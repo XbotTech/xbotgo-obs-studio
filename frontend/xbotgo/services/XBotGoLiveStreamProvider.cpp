@@ -19,6 +19,7 @@ namespace {
 
 constexpr auto liveStartUrl = "https://test-cn-cloud.xbotgo.net/api/live/api/system/room/task/start";
 constexpr auto heartbeatUrl = "https://test-cn-cloud.xbotgo.net/api/live/api/system/room/task/heartbeat";
+constexpr auto liveStopUrl = "https://test-cn-cloud.xbotgo.net/api/live/api/system/room/task/stop";
 constexpr int heartbeatIntervalMs = 10'000;
 
 std::optional<LiveStreamConfig> parseLiveStreamUrls(const QString &pushUrl, const QString &pullUrl, QString &error)
@@ -167,7 +168,7 @@ void HttpLiveStreamProvider::startHeartbeat(QObject *context, const QString &tas
 	}
 
 	heartbeatContext = context;
-	heartbeatTaskId = taskId;
+	activeTaskId = taskId;
 	heartbeatTimer = new QTimer(context);
 	heartbeatTimer->setInterval(heartbeatIntervalMs);
 	QObject::connect(heartbeatTimer, &QTimer::timeout, context, [this] { sendHeartbeat(); });
@@ -182,17 +183,17 @@ void HttpLiveStreamProvider::stopHeartbeat()
 	}
 	heartbeatTimer = nullptr;
 	heartbeatContext = nullptr;
-	heartbeatTaskId.clear();
 	heartbeatInFlight = false;
 }
 
 void HttpLiveStreamProvider::sendHeartbeat()
 {
-	if (!heartbeatContext || heartbeatTaskId.isEmpty() || heartbeatInFlight) {
+	if (!heartbeatContext || activeTaskId.isEmpty() || heartbeatInFlight) {
 		return;
 	}
 
-	const QJsonObject requestBody{{QStringLiteral("taskId"), heartbeatTaskId}};
+	const QString taskId = activeTaskId;
+	const QJsonObject requestBody{{QStringLiteral("taskId"), taskId}};
 	const std::string postData = QJsonDocument(requestBody).toJson(QJsonDocument::Compact).toStdString();
 	std::vector<std::string> headers{
 		"DATA-REGION: CN",
@@ -204,8 +205,10 @@ void HttpLiveStreamProvider::sendHeartbeat()
 	blog(LOG_INFO, "XBotGo heartbeat request: %s", postData.c_str());
 	auto *thread = new RemoteTextThread(heartbeatUrl, std::move(headers), "application/json", postData, 10);
 	QObject::connect(thread, &RemoteTextThread::Result, heartbeatContext,
-			 [this](const std::string &response, const std::string &networkError) {
-				 heartbeatInFlight = false;
+			 [this, taskId](const std::string &response, const std::string &networkError) {
+				 if (taskId == activeTaskId) {
+					 heartbeatInFlight = false;
+				 }
 				 if (!networkError.empty()) {
 					 blog(LOG_WARNING, "XBotGo heartbeat request failed: %s", networkError.c_str());
 					 return;
@@ -230,6 +233,54 @@ void HttpLiveStreamProvider::sendHeartbeat()
 					      message.isEmpty() ? "unknown server error" : message.constData());
 				 }
 			 });
+	QObject::connect(thread, &QThread::finished, thread, &QObject::deleteLater);
+	thread->start();
+}
+
+void HttpLiveStreamProvider::stopLiveTask(QObject *context)
+{
+	stopHeartbeat();
+	if (!context || activeTaskId.isEmpty()) {
+		return;
+	}
+
+	const QString taskId = std::exchange(activeTaskId, QString{});
+	const QJsonObject requestBody{{QStringLiteral("taskId"), taskId}};
+	const std::string postData = QJsonDocument(requestBody).toJson(QJsonDocument::Compact).toStdString();
+	std::vector<std::string> headers{
+		"DATA-REGION: CN",
+		"BLINK-APP-LANG: en_US",
+		"Accept: */*",
+	};
+
+	blog(LOG_INFO, "XBotGo stop live task request: %s", postData.c_str());
+	auto *thread = new RemoteTextThread(liveStopUrl, std::move(headers), "application/json", postData, 10);
+	QObject::connect(
+		thread, &RemoteTextThread::Result, context,
+		[](const std::string &response, const std::string &networkError) {
+			if (!networkError.empty()) {
+				blog(LOG_WARNING, "XBotGo stop live task request failed: %s", networkError.c_str());
+				return;
+			}
+			blog(LOG_INFO, "XBotGo stop live task response: %s", response.c_str());
+
+			QJsonParseError parseError;
+			const QJsonDocument document =
+				QJsonDocument::fromJson(QByteArray::fromStdString(response), &parseError);
+			if (parseError.error != QJsonParseError::NoError || !document.isObject()) {
+				blog(LOG_WARNING, "XBotGo stop live task returned invalid JSON: %s",
+				     parseError.errorString().toUtf8().constData());
+				return;
+			}
+
+			const QJsonObject root = document.object();
+			const QJsonValue code = root.value(QStringLiteral("code"));
+			if (!code.isDouble() || code.toInt() != 200) {
+				const QByteArray message = root.value(QStringLiteral("msg")).toString().toUtf8();
+				blog(LOG_WARNING, "XBotGo stop live task was rejected: %s",
+				     message.isEmpty() ? "unknown server error" : message.constData());
+			}
+		});
 	QObject::connect(thread, &QThread::finished, thread, &QObject::deleteLater);
 	thread->start();
 }

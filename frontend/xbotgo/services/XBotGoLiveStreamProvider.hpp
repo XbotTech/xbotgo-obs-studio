@@ -21,6 +21,7 @@ public:
 	virtual void requestLiveStreamConfig(QObject *context, LiveStreamConfigCallback callback) = 0;
 	virtual void startHeartbeat(QObject *context, const QString &taskId) = 0;
 	virtual void stopHeartbeat() = 0;
+	virtual void stopLiveTask(QObject *context) = 0;
 };
 
 class HttpLiveStreamProvider final : public LiveStreamProvider {
@@ -30,13 +31,14 @@ public:
 	void requestLiveStreamConfig(QObject *context, LiveStreamConfigCallback callback) override;
 	void startHeartbeat(QObject *context, const QString &taskId) override;
 	void stopHeartbeat() override;
+	void stopLiveTask(QObject *context) override;
 
 private:
 	void sendHeartbeat();
 
 	QPointer<QObject> heartbeatContext;
 	QPointer<QTimer> heartbeatTimer;
-	QString heartbeatTaskId;
+	QString activeTaskId;
 	bool heartbeatInFlight = false;
 };
 
