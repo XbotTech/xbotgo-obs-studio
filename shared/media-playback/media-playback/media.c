@@ -20,6 +20,9 @@
 
 #include "media-playback.h"
 #include "media.h"
+
+#include <libavutil/display.h>
+#include <math.h>
 #include "closest-format.h"
 
 #include <libavdevice/avdevice.h>
@@ -710,6 +713,25 @@ static bool init_avformat(mp_media_t *m)
 	m->has_video = mp_decode_init(m, AVMEDIA_TYPE_VIDEO, m->hw);
 	m->has_audio = mp_decode_init(m, AVMEDIA_TYPE_AUDIO, m->hw);
 
+	if (m->has_video && m->v_rotation_cb) {
+		const AVCodecParameters *codecpar = m->v.stream->codecpar;
+		const AVPacketSideData *side_data = av_packet_side_data_get(codecpar->coded_side_data,
+								       codecpar->nb_coded_side_data,
+								       AV_PKT_DATA_DISPLAYMATRIX);
+		long rotation = 0;
+
+		if (side_data && side_data->size >= sizeof(int32_t) * 9) {
+			double angle = av_display_rotation_get((const int32_t *)side_data->data);
+			if (isfinite(angle)) {
+				rotation = lround(angle) % 360;
+				if (rotation < 0)
+					rotation += 360;
+			}
+		}
+
+		m->v_rotation_cb(m->opaque, rotation);
+	}
+
 	if (!m->has_video && !m->has_audio) {
 		blog(LOG_WARNING,
 		     "MP: Could not initialize audio or video: "
@@ -879,6 +901,7 @@ bool mp_media_init(mp_media_t *media, const struct mp_media_info *info)
 	media->opaque = info->opaque;
 	media->v_cb = info->v_cb;
 	media->a_cb = info->a_cb;
+	media->v_rotation_cb = info->v_rotation_cb;
 	media->stop_cb = info->stop_cb;
 	media->ffmpeg_options = info->ffmpeg_options;
 	media->v_seek_cb = info->v_seek_cb;

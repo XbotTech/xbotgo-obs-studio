@@ -46,6 +46,7 @@ struct mp_media {
 	mp_stop_cb stop_cb;
 	mp_video_cb v_cb;
 	mp_audio_cb a_cb;
+	mp_video_rotation_cb v_rotation_cb;
 	void *opaque;
 
 	char *path;

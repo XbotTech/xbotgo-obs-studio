@@ -5,8 +5,10 @@
 #include <util/dstr.h>
 #include <sys/stat.h>
 
-#define blog(log_level, format, ...) \
-	blog(log_level, "[image_source: '%s'] " format, obs_source_get_name(context->source), ##__VA_ARGS__)
+#undef blog
+#define blog(log_level, format, ...)                                                                                 \
+	blogex(log_level, __FILE__, __LINE__, "[image_source: '%s'] " format, obs_source_get_name(context->source), \
+	       ##__VA_ARGS__)
 
 #define debug(format, ...) blog(LOG_DEBUG, format, ##__VA_ARGS__)
 #define info(format, ...) blog(LOG_INFO, format, ##__VA_ARGS__)
