@@ -28,7 +28,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <pthread.h>
 
-#define blog(level, msg, ...) blog(level, "alsa-input: " msg, ##__VA_ARGS__)
+#undef blog
+#define blog(level, msg, ...) blogex(level, __FILE__, __LINE__, "alsa-input: " msg, ##__VA_ARGS__)
 
 #define NSEC_PER_SEC 1000000000LL
 #define NSEC_PER_MSEC 1000000L

@@ -84,6 +84,12 @@ EXPORT void blogva(int log_level, const char *format, va_list args);
 
 PRINTFATTR(2, 3)
 EXPORT void blog(int log_level, const char *format, ...);
+PRINTFATTR(4, 5)
+EXPORT void blogex(int log_level, const char *file, int line, const char *format, ...);
+
+#ifndef OBS_DISABLE_LOG_CALLSITE
+#define blog(log_level, format, ...) blogex(log_level, __FILE__, __LINE__, format, ##__VA_ARGS__)
+#endif
 PRINTFATTR(1, 2)
 #ifndef SWIG
 OBS_NORETURN

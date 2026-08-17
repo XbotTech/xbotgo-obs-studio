@@ -30,7 +30,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 #define XSHM_DATA(voidptr) struct xshm_data *data = voidptr;
 
-#define blog(level, msg, ...) blog(level, "xshm-input: " msg, ##__VA_ARGS__)
+#undef blog
+#define blog(level, msg, ...) blogex(level, __FILE__, __LINE__, "xshm-input: " msg, ##__VA_ARGS__)
 
 #define INVALID_DISPLAY (-1)
 

@@ -21,7 +21,8 @@
 #include "../util/dstr.h"
 #include "vec4.h"
 
-#define blog(level, format, ...) blog(level, "%s: " format, __FUNCTION__, __VA_ARGS__)
+#undef blog
+#define blog(level, format, ...) blogex(level, __FILE__, __LINE__, "%s: " format, __FUNCTION__, __VA_ARGS__)
 
 static void *bi_def_bitmap_create(int width, int height)
 {

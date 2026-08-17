@@ -62,6 +62,7 @@ static void init_hw_decoder(struct mp_decode *d, AVCodecContext *c)
 		c->opaque = d;
 		d->hw_ctx = hw_ctx;
 		d->hw = true;
+		blog(LOG_INFO, "MP: Hardware decoder initialized using %s", av_hwdevice_get_type_name(*priority));
 	}
 }
 

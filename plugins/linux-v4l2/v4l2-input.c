@@ -61,7 +61,8 @@ along with this program.  If not, see <http://www.gnu.org/licenses/>.
 		code & 0xFF, (code >> 8) & 0xFF, (code >> 16) & 0xFF, (code >> 24) & 0xFF, 0 \
 	}
 
-#define blog(level, msg, ...) blog(level, "v4l2-input: " msg, ##__VA_ARGS__)
+#undef blog
+#define blog(level, msg, ...) blogex(level, __FILE__, __LINE__, "v4l2-input: " msg, ##__VA_ARGS__)
 
 /**
  * Data structure for the v4l2 source

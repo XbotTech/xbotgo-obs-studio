@@ -117,10 +117,11 @@ static bool is_local_file_modified(obs_properties_t *props, obs_property_t *prop
 static void ffmpeg_source_defaults(obs_data_t *settings)
 {
 	obs_data_set_default_bool(settings, "is_local_file", true);
-	obs_data_set_default_bool(settings, "looping", false);
+	obs_data_set_default_bool(settings, "looping", true);
 	obs_data_set_default_bool(settings, "clear_on_media_end", true);
 	obs_data_set_default_bool(settings, "restart_on_activate", true);
 	obs_data_set_default_bool(settings, "linear_alpha", false);
+	obs_data_set_default_bool(settings, "hw_decode", true);
 	obs_data_set_default_int(settings, "reconnect_delay_sec", 10);
 	obs_data_set_default_int(settings, "buffering_mb", 2);
 	obs_data_set_default_int(settings, "speed_percent", 100);
@@ -271,6 +272,12 @@ static void get_audio(void *opaque, struct obs_source_audio *a)
 		FF_BLOG(LOG_INFO, "Reconnected.");
 }
 
+static void set_video_rotation(void *opaque, long rotation)
+{
+	struct ffmpeg_source *s = opaque;
+	obs_source_set_async_rotation(s->source, rotation);
+}
+
 static void media_stopped(void *opaque)
 {
 	struct ffmpeg_source *s = opaque;
@@ -289,6 +296,8 @@ static void media_stopped(void *opaque)
 
 static void ffmpeg_source_open(struct ffmpeg_source *s)
 {
+	obs_source_set_async_rotation(s->source, 0);
+
 	if (s->input && *s->input) {
 		struct mp_media_info info = {
 			.opaque = s,
@@ -296,6 +305,7 @@ static void ffmpeg_source_open(struct ffmpeg_source *s)
 			.v_preload_cb = preload_frame,
 			.v_seek_cb = seek_frame,
 			.a_cb = get_audio,
+			.v_rotation_cb = set_video_rotation,
 			.stop_cb = media_stopped,
 			.path = s->input,
 			.format = s->input_format,
