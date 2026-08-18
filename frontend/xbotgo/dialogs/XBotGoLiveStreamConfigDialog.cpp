@@ -32,6 +32,7 @@ LiveStreamConfigDialog::LiveStreamConfigDialog(const LiveStreamConfig &config, Q
 	pullUrlEdit->setCursorPosition(0);
 	pullServer = config.pullServer;
 	pullStreamKey = config.pullStreamKey;
+	taskId = config.taskId;
 
 	auto formLayout = new QFormLayout;
 	formLayout->setFieldGrowthPolicy(QFormLayout::AllNonFixedFieldsGrow);
@@ -58,8 +59,8 @@ LiveStreamConfigDialog::LiveStreamConfigDialog(const LiveStreamConfig &config, Q
 
 LiveStreamConfig LiveStreamConfigDialog::liveStreamConfig() const
 {
-	return {pushServerEdit->text().trimmed(), pushStreamKeyEdit->text().trimmed(),
-		pullServer, pullStreamKey};
+	return {pushServerEdit->text().trimmed(), pushStreamKeyEdit->text().trimmed(), pullServer, pullStreamKey,
+		taskId};
 }
 
 void LiveStreamConfigDialog::accept()

@@ -256,7 +256,7 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 
 	ui->setupUi(this);
 	ui->previewDisabledWidget->setVisible(false);
-	xbotgoLiveStreamProvider = std::make_unique<XBotGo::HardcodedLiveStreamProvider>();
+	xbotgoLiveStreamProvider = std::make_unique<XBotGo::HttpLiveStreamProvider>();
 
 	/* Set up streaming connections */
 	connect(
@@ -267,6 +267,12 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 		Qt::DirectConnection);
 	connect(
 		this, &OBSBasic::StreamingStopped, this, [this] { this->streamingStarting = false; },
+		Qt::DirectConnection);
+	connect(
+		this, &OBSBasic::StreamingStopping, this, [this] { xbotgoLiveStreamProvider->stopHeartbeat(); },
+		Qt::DirectConnection);
+	connect(
+		this, &OBSBasic::StreamingStopped, this, [this] { xbotgoLiveStreamProvider->stopLiveTask(this); },
 		Qt::DirectConnection);
 	connect(
 		this, &OBSBasic::StreamingPreparing, ui->actionXBotGoStartStreaming,
