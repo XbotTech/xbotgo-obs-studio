@@ -1,0 +1,40 @@
+cmake_minimum_required(VERSION 3.28...3.30)
+
+set(FALCONM_SDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/vendor/media-sdk/arm64")
+file(GLOB_RECURSE FALCONM_SDK_HEADERS CONFIGURE_DEPENDS
+  "${FALCONM_SDK_ROOT}/include/*.h"
+)
+
+add_library(xbotogo-falconM MODULE
+  xbotogo-falconM.cpp
+	 falconm-source.cpp
+  falconm-stream.cpp
+  falconm.hpp
+  falconm-stream.hpp
+  ${FALCONM_SDK_HEADERS}
+)
+
+set(FALCONM_SDK_LIBRARY "${FALCONM_SDK_ROOT}/lib/libmedia_sdk.1.0.0.dylib")
+
+target_include_directories(xbotogo-falconM SYSTEM PRIVATE "${FALCONM_SDK_ROOT}/include")
+target_link_libraries(xbotogo-falconM PRIVATE "${FALCONM_SDK_LIBRARY}")
+set_property(TARGET xbotogo-falconM PROPERTY BUILD_RPATH "@loader_path/../Frameworks")
+target_link_options(xbotogo-falconM PRIVATE "LINKER:-rpath,@loader_path/../Frameworks")
+
+add_custom_command(
+  TARGET xbotogo-falconM
+  POST_BUILD
+  COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:xbotogo-falconM>/../Frameworks"
+  COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+          "${FALCONM_SDK_LIBRARY}"
+          "$<TARGET_FILE_DIR:xbotogo-falconM>/../Frameworks/libmedia_sdk.1.0.0.dylib"
+  VERBATIM
+)
+
+target_link_libraries(xbotogo-falconM PRIVATE
+  OBS::libobs
+  "-framework CoreVideo"
+  "-framework CoreFoundation"
+)
+
+set_target_properties_obs(xbotogo-falconM PROPERTIES FOLDER plugins)
