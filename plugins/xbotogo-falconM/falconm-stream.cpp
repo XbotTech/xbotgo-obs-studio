@@ -10,7 +10,9 @@
 using namespace blink::media;
 
 namespace xbotgo {
-
+constexpr uint32_t kDefaultVideoSsrc = 6666;
+constexpr uint32_t kDefaultAudioSsrc = 7777;
+constexpr uint32_t kDefaultDataSsrc = 8888;
 class FalconMStreamSdk final : public FalconMStream, private rtcsdk::BLRTCServerSessionListener {
 public:
 	FalconMStreamSdk()
@@ -58,7 +60,7 @@ public:
 		connected_ = true;
 		return true;
 	}
-	bool startStreaming(uint32_t video_ssrc, uint32_t audio_ssrc) override
+	bool startStreaming(const uint32_t video_ssrc = kDefaultVideoSsrc, const uint32_t audio_ssrc = kDefaultAudioSsrc, const uint32_t dataSsrc = kDefaultDataSsrc) override
 	{
 		if (!connected_ || streaming_) {
 			return connected_ && streaming_;
@@ -66,6 +68,7 @@ public:
 		rtcsdk::PullStreamParams p;
 		p.srtPushCfg.videoSsrc = video_ssrc;
 		p.srtPushCfg.audioSsrc = audio_ssrc;
+		p.srtPushCfg.dataSsrc = dataSsrc;
 		if (session_->startPullStream(device_id_, p) != 0) {
 			blog(LOG_ERROR, "FalconM: startPullStream failed for device '%s'", device_id_.c_str());
 			return false;
@@ -133,13 +136,15 @@ private:
 	{
 		blog(LOG_INFO, "FalconM: onPeerConnectStatus client=%s status=%d", client.name.c_str(), status);
 		connected_ = status == rtcsdk::PEER_CONNECTION_STATUS_CONNECTED;
-		if (!connected_) {
+		if (connected_) {
+			if (!startStreaming()) {
+				blog(LOG_ERROR, "FalconM: startStreaming failed after peer connection");
+			}
+		} else {
 			blog(LOG_ERROR, "FalconM: peer connection failed, status=%d", status);
 			return;
 		}
-		if (!startStreaming(0, 0)) {
-			blog(LOG_ERROR, "FalconM: startStreaming failed after peer connection");
-		}
+		
 	}
 	void onEncodedFrame(uint32_t ssrc, std::shared_ptr<MediaData> data) override
 	{
@@ -279,18 +284,28 @@ private:
 	}
 	void onNewSrtStream(const MediaStreamInfo &stream) override
 	{
-		blog(LOG_INFO, "FalconM: onNewSrtStream ssrc=%u", stream.ssrc);
+		blog(LOG_INFO, "[socket_source] new srt stream ssrc %u type %d format %d", stream.ssrc, stream.mediaType,
+		     stream.mediaFormat);
+		/* Wires up the SDK-internal decode pipeline (VideoDecoderIos/AudioDecoderIos);
+		 * no surface/renderer is created on mac, only on Android. */
+		if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO)
+			session_->addSurface(stream.ssrc, rtcsdk::VideoRenderParams());
+		else if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_AUDIO)
+			session_->addRemoteAudioPlayer(stream.ssrc);
 	}
 	void onDeleteSrtStream(const MediaStreamInfo &stream) override
 	{
 		blog(LOG_INFO, "FalconM: onDeleteSrtStream ssrc=%u", stream.ssrc);
+		if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO)
+			session_->removeSurface(stream.ssrc);
+		else if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_AUDIO)
+			session_->removeRemoteAudioPlayer(stream.ssrc);
 		streaming_ = false;
 		blog(LOG_WARNING, "FalconM: SRT stream deleted, ssrc=%u", stream.ssrc);
 	}
 	void onVideoFormatChanged(uint32_t ssrc, int width, int height) override
 	{
 		blog(LOG_INFO, "FalconM: onVideoFormatChanged ssrc=%u size=%dx%d", ssrc, width, height);
-		blog(LOG_INFO, "FalconM: video format changed, ssrc=%u, size=%dx%d", ssrc, width, height);
 	}
 	void onSrtPullStates(const SrtPullStatesMessage &state) override
 	{

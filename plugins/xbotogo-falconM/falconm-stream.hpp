@@ -36,7 +36,7 @@ public:
 	virtual ~FalconMStream() = default;
 	virtual bool connect(const std::string &device_id, const std::string &broker_address,
 			    uint16_t broker_port) = 0;
-	virtual bool startStreaming(uint32_t video_ssrc, uint32_t audio_ssrc) = 0;
+	virtual bool startStreaming(const uint32_t video_ssrc , const uint32_t audio_ssrc, const uint32_t dataSsrc) = 0;
 	virtual bool stopStreaming() = 0;
 	virtual bool isStreaming() const = 0;
 	virtual void disconnect() = 0;
