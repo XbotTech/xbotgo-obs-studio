@@ -747,7 +747,11 @@ void OBSBasic::ApplyXBotGoLiveStreamConfig(const XBotGo::LiveStreamConfig &confi
 	bool enteredPreparation = false;
 	const QMetaObject::Connection preparingConnection =
 		connect(this, &OBSBasic::StreamingPreparing, this,
-			[&enteredPreparation] { enteredPreparation = true; }, Qt::DirectConnection);
+			[this, &enteredPreparation, taskId = config.taskId] {
+				enteredPreparation = true;
+				xbotgoLiveStreamProvider->startHeartbeat(this, taskId);
+			},
+			Qt::DirectConnection);
 
 	StreamActionTriggered();
 	disconnect(preparingConnection);

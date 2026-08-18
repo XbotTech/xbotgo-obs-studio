@@ -25,6 +25,7 @@ private:
 	QLineEdit *pullUrlEdit = nullptr;
 	QString pullServer;
 	QString pullStreamKey;
+	QString taskId;
 };
 
 } // namespace XBotGo

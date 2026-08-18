@@ -9,17 +9,18 @@ struct LiveStreamConfig {
 	QString pushStreamKey;
 	QString pullServer;
 	QString pullStreamKey;
+	QString taskId;
 
 	QString pushUrl() const
 	{
 		return pushServer.endsWith(QLatin1Char('/')) ? pushServer + pushStreamKey
-							    : pushServer + QLatin1Char('/') + pushStreamKey;
+							     : pushServer + QLatin1Char('/') + pushStreamKey;
 	}
 
 	QString pullUrl() const
 	{
 		return pullServer.endsWith(QLatin1Char('/')) ? pullServer + pullStreamKey
-							    : pullServer + QLatin1Char('/') + pullStreamKey;
+							     : pullServer + QLatin1Char('/') + pullStreamKey;
 	}
 };
 
