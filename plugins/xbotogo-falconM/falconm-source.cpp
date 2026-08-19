@@ -55,8 +55,19 @@ static void falconm_destroy(void *p)
 static void falconm_update(void *p, obs_data_t *s)
 {
 	auto *d = (falconm_source *)p;
-	d->broker_address = obs_data_get_string(s, "broker_address");
-	d->device_id = obs_data_get_string(s, "device_id");
+	const std::string broker_address = obs_data_get_string(s, "broker_address");
+	const std::string device_id = obs_data_get_string(s, "device_id");
+	const bool connection_changed = d->broker_address != broker_address || d->device_id != device_id;
+
+	d->broker_address = broker_address;
+	d->device_id = device_id;
+
+	if (connection_changed && d->active) {
+		d->stream->disconnect();
+		if (!d->stream->connect(d->device_id, d->broker_address, d->broker_port)) {
+			blog(LOG_ERROR, "FalconM: reconnect failed after connection settings changed");
+		}
+	}
 }
 static void falconm_activate(void *p)
 {
