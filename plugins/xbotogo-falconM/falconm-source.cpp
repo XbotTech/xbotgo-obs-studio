@@ -84,7 +84,6 @@ static void falconm_activate(void *p)
 	});
 	if (!d->stream->connect(d->device_id, d->broker_address, d->broker_port)) {
 		blog(LOG_ERROR, "FalconM: connect/startStreaming failed");
-		d->active = false;
 	}
 }
 static void falconm_deactivate(void *p)
@@ -100,8 +99,13 @@ static obs_properties_t *falconm_properties(void *)
 }
 static void falconm_defaults(obs_data_t *s)
 {
-	obs_data_set_default_string(s, "broker_address", "169.254.184.18");
-	obs_data_set_default_string(s, "device_id", "Xbt-F-6c092e");
+//	obs_data_set_default_string(s, "broker_address", "169.254.184.18");
+//	obs_data_set_default_string(s, "device_id", "Xbt-F-6c092e");
+//	obs_data_set_default_string(s, "broker_address", "169.254.115.111");
+//	obs_data_set_default_string(s, "device_id", "Xbt-F-6c092e");
+	
+	obs_data_set_default_string(s, "broker_address", "");
+	obs_data_set_default_string(s, "device_id", "");
 }
 
 obs_source_info falconm_source_info = {.id = "xbotogo_falconm",
