@@ -19,4 +19,6 @@ struct falconm_source {
 	uint32_t audio_ssrc = 0;
 };
 
+void falconm_register_proc_handler(falconm_source *source);
+
 } // namespace xbotgo

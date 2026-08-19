@@ -8,6 +8,7 @@
 #include <util/base.h>
 
 #include <limits>
+#include <callback/calldata.h>
 
 namespace xbotgo {
 
@@ -48,6 +49,7 @@ static void falconm_stop(falconm_source *d)
 	}
 	d->stopping = true;
 	if (d->stream) {
+		d->stream->setMotorAngleReportEnabled(false);
 		d->stream->stopStreaming();
 		d->stream->disconnect();
 	}
@@ -62,6 +64,7 @@ static void *falconm_create(obs_data_t *s, obs_source_t *source)
 	d->broker_address = obs_data_get_string(s, "broker_address");
 	d->device_id = obs_data_get_string(s, "device_id");
 	d->broker_port = get_broker_port(s);
+	falconm_register_proc_handler(d);
 	return d;
 }
 static void falconm_destroy(void *p)
@@ -106,11 +109,60 @@ static void falconm_activate(void *p)
 	if (!d->stream->connect(d->device_id, d->broker_address, d->broker_port)) {
 		blog(LOG_ERROR, "FalconM: connect/startStreaming failed");
 		d->active = false;
+		return;
 	}
 }
 static void falconm_deactivate(void *p)
 {
 	falconm_stop((falconm_source *)p);
+}
+
+static void falconm_send_direction(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	long long direction = -1, operation = -1;
+	if (!calldata_get_int(cd, "direction", &direction) || !calldata_get_int(cd, "operation", &operation) ||
+	    direction < 0 || direction > 4 || operation < 0 || operation > 2 || !d->stream)
+		return;
+	calldata_set_bool(cd, "success", d->stream->sendDirection(static_cast<falconm_direction>(direction),
+													 static_cast<falconm_operation>(operation)));
+}
+
+static void falconm_query_angle(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	calldata_set_bool(cd, "success", d->stream && d->stream->queryMotorAngle());
+}
+
+static void falconm_set_angle_reporting(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	bool enabled = false;
+	if (!calldata_get_bool(cd, "enabled", &enabled) || !d->stream)
+		return;
+	calldata_set_bool(cd, "success", d->stream->setMotorAngleReportEnabled(enabled));
+}
+
+static void falconm_get_angle(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	if (!d->stream)
+		return;
+	const auto angle = d->stream->motorAngle();
+	calldata_set_int(cd, "result", angle.result);
+	calldata_set_float(cd, "horizontal", angle.horizontal / 100.0);
+	calldata_set_float(cd, "vertical", angle.vertical / 100.0);
+	calldata_set_int(cd, "horizontal_limit", angle.horizontal_limit);
+	calldata_set_int(cd, "vertical_limit", angle.vertical_limit);
+}
+
+void falconm_register_proc_handler(falconm_source *d)
+{
+	proc_handler_t *ph = obs_source_get_proc_handler(d->source);
+	proc_handler_add(ph, "void send_direction(int direction, int operation, out bool success)", falconm_send_direction, d);
+	proc_handler_add(ph, "void query_motor_angle(out bool success)", falconm_query_angle, d);
+	proc_handler_add(ph, "void set_motor_angle_reporting(bool enabled, out bool success)", falconm_set_angle_reporting, d);
+	proc_handler_add(ph, "void get_motor_angle(out int result, out float horizontal, out float vertical, out int horizontal_limit, out int vertical_limit)", falconm_get_angle, d);
 }
 
 #ifdef XBOTGO_DEVICE_DISCOVERY

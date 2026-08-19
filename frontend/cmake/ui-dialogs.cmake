@@ -25,6 +25,8 @@ target_sources(
     dialogs/OBSBasicAdvAudio.hpp
     dialogs/OBSBasicFalconMDevices.cpp
     dialogs/OBSBasicFalconMDevices.hpp
+    dialogs/OBSBasicFalconMControl.cpp
+    dialogs/OBSBasicFalconMControl.hpp
     dialogs/OBSBasicFilters.cpp
     dialogs/OBSBasicFilters.hpp
     dialogs/OBSBasicInteraction.cpp

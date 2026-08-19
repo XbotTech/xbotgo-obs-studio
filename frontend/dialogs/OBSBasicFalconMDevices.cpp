@@ -1,4 +1,5 @@
 #include "OBSBasicFalconMDevices.hpp"
+#include "OBSBasicFalconMControl.hpp"
 
 #include <OBSApp.hpp>
 
@@ -40,6 +41,7 @@ OBSBasicFalconMDevices::OBSBasicFalconMDevices(QWidget *parent) : QDialog(parent
 
 	auto *refresh = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Refresh"), this);
 	connect(refresh, &QPushButton::clicked, this, &OBSBasicFalconMDevices::ReloadDevices);
+	connect(devices, &QTableWidget::cellDoubleClicked, this, &OBSBasicFalconMDevices::OpenControl);
 
 	auto *layout = new QVBoxLayout(this);
 	layout->addWidget(devices);
@@ -48,8 +50,19 @@ OBSBasicFalconMDevices::OBSBasicFalconMDevices(QWidget *parent) : QDialog(parent
 	ReloadDevices();
 }
 
+OBSBasicFalconMDevices::~OBSBasicFalconMDevices()
+{
+	for (auto *source : sources) {
+		obs_source_release(source);
+	}
+}
+
 void OBSBasicFalconMDevices::ReloadDevices()
 {
+	for (auto *source : sources) {
+		obs_source_release(source);
+	}
+	sources.clear();
 	devices->setSortingEnabled(false);
 	devices->setRowCount(0);
 
@@ -64,6 +77,8 @@ void OBSBasicFalconMDevices::ReloadDevices()
 			OBSDataAutoRelease settings = obs_source_get_settings(source);
 			const char *deviceId = settings ? obs_data_get_string(settings, "device_id") : "";
 			const int row = table->rowCount();
+			auto *source_ref = obs_source_get_ref(source);
+			static_cast<OBSBasicFalconMDevices *>(table->parentWidget())->sources.push_back(source_ref);
 			table->insertRow(row);
 			table->setItem(row, 0, new QTableWidgetItem(QT_UTF8(obs_source_get_name(source))));
 			table->setItem(row, 1, new QTableWidgetItem(QT_UTF8(deviceId)));
@@ -84,4 +99,21 @@ void OBSBasicFalconMDevices::ReloadDevices()
 	}
 
 	devices->setSortingEnabled(true);
+}
+
+void OBSBasicFalconMDevices::OpenControl(int row, int)
+{
+	if (row < 0 || row >= static_cast<int>(sources.size())) {
+		return;
+	}
+	auto *source = sources[static_cast<size_t>(row)];
+	if (controls.value(source)) {
+		controls.value(source)->raise();
+		controls.value(source)->activateWindow();
+		return;
+	}
+	auto *control = new OBSBasicFalconMControl(source, this);
+	controls.insert(source, control);
+	connect(control, &QObject::destroyed, this, [this, source] { controls.remove(source); });
+	control->show();
 }

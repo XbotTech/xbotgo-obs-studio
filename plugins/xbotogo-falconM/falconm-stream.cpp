@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstring>
 #include <CoreVideo/CoreVideo.h>
+#include <mutex>
 
 using namespace blink::media;
 
@@ -22,6 +23,16 @@ static void disable_media_sdk_logging()
 		return true;
 	}();
 	UNUSED_PARAMETER(logging_disabled);
+}
+
+static uint32_t read_u32_be(const uint8_t *p)
+{
+	return (uint32_t(p[0]) << 24) | (uint32_t(p[1]) << 16) | (uint32_t(p[2]) << 8) | uint32_t(p[3]);
+}
+
+static uint16_t read_u16_be(const uint8_t *p)
+{
+	return uint16_t(uint16_t(p[0]) << 8) | uint16_t(p[1]);
 }
 
 class FalconMStreamSdk final : public FalconMStream, private rtcsdk::BLRTCServerSessionListener {
@@ -138,6 +149,26 @@ public:
 		m.payloadlen = (uint32_t)size;
 		return session_->sendPeerMessage(device_id_, m) == 0;
 	}
+	bool sendDirection(falconm_direction direction, falconm_operation operation) override
+	{
+		const uint8_t payload[] = {static_cast<uint8_t>(direction), static_cast<uint8_t>(operation)};
+		return sendSignalingMessage("AYR", payload, sizeof(payload));
+	}
+	bool queryMotorAngle() override
+	{
+		const uint8_t payload = 0;
+		return sendSignalingMessage("BXR", &payload, 1);
+	}
+	bool setMotorAngleReportEnabled(bool enabled) override
+	{
+		const uint8_t payload = enabled ? 1 : 0;
+		return sendSignalingMessage("DGR", &payload, 1);
+	}
+	falconm_motor_angle motorAngle() const override
+	{
+		std::lock_guard<std::mutex> lock(angle_mutex_);
+		return angle_;
+	}
 
 private:
 	void onPeerDevicesRefresh(rtcsdk::BLNSPClient &client) override
@@ -149,6 +180,8 @@ private:
 		blog(LOG_INFO, "FalconM: onPeerConnectStatus client=%s status=%d", client.name.c_str(), status);
 		connected_ = status == rtcsdk::PEER_CONNECTION_STATUS_CONNECTED;
 		if (connected_) {
+			setMotorAngleReportEnabled(true);
+			queryMotorAngle();
 			if (!startStreaming()) {
 				blog(LOG_ERROR, "FalconM: startStreaming failed after peer connection");
 			}
@@ -168,7 +201,7 @@ private:
 			blog(LOG_ERROR, "FalconM: onDecodedFrame received null data, ssrc=%u", ssrc);
 			return;
 		}
-		blog(LOG_INFO, "FalconM: onDecodedFrame ssrc=%u format=%d type=%d", ssrc, d->format, d->type);
+		// blog(LOG_INFO, "FalconM: onDecodedFrame ssrc=%u format=%d type=%d", ssrc, d->format, d->type);
 		if (d->format == MEDIA_DATA_FORMAT_IMAGE_BUFFER) {
 			if (!d->bufferObj) {
 				blog(LOG_ERROR, "FalconM: IMAGE_BUFFER decoded frame has null bufferObj, ssrc=%u", ssrc);
@@ -289,6 +322,24 @@ private:
 			blog(LOG_ERROR, "FalconM: invalid signaling payload from '%s'", client.name.c_str());
 			return;
 		}
+		const auto *payload = static_cast<const uint8_t *>(m.payload);
+		if (m.topic == "BXA" && m.payloadlen >= 10) {
+			falconm_motor_angle angle;
+			angle.result = read_u16_be(payload);
+			angle.horizontal = static_cast<int32_t>(read_u32_be(payload + 2));
+			angle.vertical = static_cast<int32_t>(read_u32_be(payload + 6));
+			std::lock_guard<std::mutex> lock(angle_mutex_);
+			angle_ = angle;
+		} else if (m.topic == "DFA" && m.payloadlen >= 12) {
+			falconm_motor_angle angle;
+			angle.result = read_u16_be(payload);
+			angle.horizontal = static_cast<int32_t>(read_u32_be(payload + 2));
+			angle.horizontal_limit = payload[6];
+			angle.vertical = static_cast<int32_t>(read_u32_be(payload + 7));
+			angle.vertical_limit = payload[11];
+			std::lock_guard<std::mutex> lock(angle_mutex_);
+			angle_ = angle;
+		}
 		if (signaling_cb_) {
 			signaling_cb_(m.topic,
 				      std::vector<uint8_t>((uint8_t *)m.payload, (uint8_t *)m.payload + m.payloadlen));
@@ -333,6 +384,8 @@ private:
 	std::string controller_id_ = "uuid";
 	std::atomic<bool> connected_{false};
 	std::atomic<bool> streaming_{false};
+	mutable std::mutex angle_mutex_;
+	falconm_motor_angle angle_;
 	decoded_callback decoded_cb_;
 	audio_callback audio_cb_;
 	signaling_callback signaling_cb_;
