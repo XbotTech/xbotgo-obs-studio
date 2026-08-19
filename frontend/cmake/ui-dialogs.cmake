@@ -23,6 +23,8 @@ target_sources(
     dialogs/OBSAbout.hpp
     dialogs/OBSBasicAdvAudio.cpp
     dialogs/OBSBasicAdvAudio.hpp
+    dialogs/OBSBasicFalconMDevices.cpp
+    dialogs/OBSBasicFalconMDevices.hpp
     dialogs/OBSBasicFilters.cpp
     dialogs/OBSBasicFilters.hpp
     dialogs/OBSBasicInteraction.cpp

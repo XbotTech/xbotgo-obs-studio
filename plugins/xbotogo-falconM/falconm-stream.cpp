@@ -1,6 +1,7 @@
 #include "falconm-stream.hpp"
 #include <BLRTCServerSession.h>
 #include <GlobalInit.h>
+#include <log.h>
 #include <util/base.h>
 #include <atomic>
 #include <algorithm>
@@ -13,10 +14,21 @@ namespace xbotgo {
 constexpr uint32_t kDefaultVideoSsrc = 6666;
 constexpr uint32_t kDefaultAudioSsrc = 7777;
 constexpr uint32_t kDefaultDataSsrc = 8888;
+
+static void disable_media_sdk_logging()
+{
+	static const bool logging_disabled = [] {
+		blink::media::init_logger([](int, const std::string &, const std::string &) {});
+		return true;
+	}();
+	UNUSED_PARAMETER(logging_disabled);
+}
+
 class FalconMStreamSdk final : public FalconMStream, private rtcsdk::BLRTCServerSessionListener {
 public:
 	FalconMStreamSdk()
 	{
+		disable_media_sdk_logging();
 		const int init_result = blink::utils::GlobalInit::getInstance().init(blink::utils::GlobalConfig());
 		if (init_result != 0) {
 			blog(LOG_ERROR, "FalconM: Media SDK GlobalInit failed, result=%d", init_result);
