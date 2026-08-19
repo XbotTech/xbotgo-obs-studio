@@ -44,7 +44,7 @@
 #include <utility/WhatsNewInfoThread.hpp>
 #endif
 #include <wizards/AutoConfig.hpp>
-#include <xbotgo/dialogs/XBotGoDeviceSearchDialog.hpp>
+#include <XBotGoDeviceSearchDialog.hpp>
 #include <xbotgo/dialogs/XBotGoLiveStreamConfigDialog.hpp>
 #include <xbotgo/services/XBotGoLiveStreamProvider.hpp>
 

@@ -37,4 +37,10 @@ target_link_libraries(xbotogo-falconM PRIVATE
   "-framework CoreFoundation"
 )
 
+if(ENABLE_FRONTEND)
+  find_package(Qt6 REQUIRED Widgets)
+  target_compile_definitions(xbotogo-falconM PRIVATE XBOTGO_DEVICE_DISCOVERY)
+  target_link_libraries(xbotogo-falconM PRIVATE OBS::xbotgo-device-discovery Qt::Widgets)
+endif()
+
 set_target_properties_obs(xbotogo-falconM PROPERTIES FOLDER plugins)

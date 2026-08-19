@@ -12,24 +12,28 @@ std::optional<Device> parseSsdpDevice(const QByteArray &payload, const QHostAddr
 	message.replace(QStringLiteral("\r\n"), QStringLiteral("\n"));
 
 	const QStringList lines = message.split(QLatin1Char('\n'), Qt::KeepEmptyParts);
-	if (lines.isEmpty())
+	if (lines.isEmpty()) {
 		return std::nullopt;
+	}
 
 	const QString startLine = lines.front().trimmed();
 	const bool isNotify = startLine.compare(QStringLiteral("NOTIFY * HTTP/1.1"), Qt::CaseInsensitive) == 0;
 	const bool isSearchResponse = startLine.compare(QStringLiteral("HTTP/1.1 200 OK"), Qt::CaseInsensitive) == 0;
-	if (!isNotify && !isSearchResponse)
+	if (!isNotify && !isSearchResponse) {
 		return std::nullopt;
+	}
 
 	QHash<QString, QString> headers;
 	for (qsizetype index = 1; index < lines.size(); ++index) {
 		const QString line = lines.at(index).trimmed();
-		if (line.isEmpty())
+		if (line.isEmpty()) {
 			continue;
+		}
 
 		const qsizetype separator = line.indexOf(QLatin1Char(':'));
-		if (separator <= 0)
+		if (separator <= 0) {
 			continue;
+		}
 
 		const QString name = line.left(separator).trimmed().toLower();
 		const QString value = line.mid(separator + 1).trimmed();
@@ -40,25 +44,30 @@ std::optional<Device> parseSsdpDevice(const QByteArray &payload, const QHostAddr
 	const QString ipText = headers.value(QStringLiteral("x-device-ip"));
 	const QString mqttPortText = headers.value(QStringLiteral("x-mqtt-port"));
 	const QString protocolVersionText = headers.value(QStringLiteral("x-protocol-version"));
-	if (id.isEmpty() || ipText.isEmpty() || mqttPortText.isEmpty() || protocolVersionText.isEmpty())
+	if (id.isEmpty() || ipText.isEmpty() || mqttPortText.isEmpty() || protocolVersionText.isEmpty()) {
 		return std::nullopt;
+	}
 
 	QHostAddress deviceAddress;
-	if (!deviceAddress.setAddress(ipText) || deviceAddress.protocol() != QAbstractSocket::IPv4Protocol)
+	if (!deviceAddress.setAddress(ipText) || deviceAddress.protocol() != QAbstractSocket::IPv4Protocol) {
 		return std::nullopt;
+	}
 
-	if (senderAddress.protocol() != QAbstractSocket::IPv4Protocol || deviceAddress != senderAddress)
+	if (senderAddress.protocol() != QAbstractSocket::IPv4Protocol || deviceAddress != senderAddress) {
 		return std::nullopt;
+	}
 
 	bool portValid = false;
 	const uint mqttPort = mqttPortText.toUInt(&portValid);
-	if (!portValid || mqttPort == 0 || mqttPort > 65535)
+	if (!portValid || mqttPort == 0 || mqttPort > 65535) {
 		return std::nullopt;
+	}
 
 	bool versionValid = false;
 	const uint protocolVersion = protocolVersionText.toUInt(&versionValid);
-	if (!versionValid || protocolVersion > 65535)
+	if (!versionValid || protocolVersion > 65535) {
 		return std::nullopt;
+	}
 
 	Device device;
 	device.id = id;
