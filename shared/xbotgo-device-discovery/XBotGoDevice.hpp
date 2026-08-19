@@ -1,6 +1,5 @@
 #pragma once
 
-#include <QHostAddress>
 #include <QString>
 
 namespace XBotGo {

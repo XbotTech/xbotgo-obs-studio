@@ -1,10 +1,11 @@
 #include "XBotGoDeviceSearchDialog.hpp"
-#include "../models/XBotGoSsdpParser.hpp"
+#include "XBotGoSsdpParser.hpp"
 
 #include <QAbstractItemView>
 #include <QDialogButtonBox>
 #include <QHeaderView>
 #include <QHideEvent>
+#include <QItemSelectionModel>
 #include <QNetworkDatagram>
 #include <QPushButton>
 #include <QShowEvent>
@@ -18,8 +19,9 @@ namespace XBotGo {
 
 static const uint16_t SSDP_PORT = 1900;
 
-DeviceSearchDialog::DeviceSearchDialog(QWidget *parent)
+DeviceSearchDialog::DeviceSearchDialog(QWidget *parent, Mode mode_)
 	: QDialog(parent),
+	  mode(mode_),
 	  groupAddress4(QStringLiteral(SSDP_QUERY_IP))
 {
 	deviceTable = new QTableView(this);
@@ -35,9 +37,26 @@ DeviceSearchDialog::DeviceSearchDialog(QWidget *parent)
 	auto refreshButton = new QPushButton(tr("&Refresh"));
 	auto buttonBox = new QDialogButtonBox;
 	buttonBox->addButton(refreshButton, QDialogButtonBox::ActionRole);
+	if (mode == Mode::Select) {
+		selectButton = buttonBox->addButton(QDialogButtonBox::Ok);
+		selectButton->setEnabled(false);
+		buttonBox->addButton(QDialogButtonBox::Cancel);
+		connect(buttonBox, &QDialogButtonBox::accepted, this, &QDialog::accept);
+		connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+		connect(deviceTable, &QTableView::doubleClicked, this, [this] {
+			if (selectedDevice()) {
+				accept();
+			}
+		});
+	} else {
+		buttonBox->addButton(QDialogButtonBox::Close);
+		connect(buttonBox, &QDialogButtonBox::rejected, this, &QDialog::reject);
+	}
 
 	connect(refreshButton, &QPushButton::clicked, this, &DeviceSearchDialog::refreshSearch);
 	connect(&timer, &QTimer::timeout, this, &DeviceSearchDialog::sendDatagram);
+	connect(deviceTable->selectionModel(), &QItemSelectionModel::selectionChanged, this,
+		&DeviceSearchDialog::updateSelection);
 
 	auto mainLayout = new QVBoxLayout;
 	mainLayout->addWidget(deviceTable);
@@ -48,8 +67,7 @@ DeviceSearchDialog::DeviceSearchDialog(QWidget *parent)
 	resize(800, 500);
 
 	socket4 = new QUdpSocket(this);
-	if (!socket4->bind(QHostAddress::AnyIPv4, SSDP_PORT,
-			   QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
+	if (!socket4->bind(QHostAddress::AnyIPv4, SSDP_PORT, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
 		qCritical() << "Failed to bind socket:" << socket4->errorString();
 		return;
 	}
@@ -70,8 +88,9 @@ DeviceSearchDialog::DeviceSearchDialog(QWidget *parent)
 				break;
 			}
 		}
-		if (!hasIPv4Address)
+		if (!hasIPv4Address) {
 			continue;
+		}
 
 		if (socket4->joinMulticastGroup(groupAddress4, networkInterface)) {
 			multicastInterfaces.append(networkInterface);
@@ -95,11 +114,31 @@ DeviceSearchDialog::~DeviceSearchDialog()
 {
 	stopSearch();
 	if (socket4) {
-		for (const QNetworkInterface &networkInterface : multicastInterfaces)
+		for (const QNetworkInterface &networkInterface : multicastInterfaces) {
 			socket4->leaveMulticastGroup(groupAddress4, networkInterface);
-		qDebug() << "Leaving Multicast group\n";
+		}
 		socket4->close();
 	}
+}
+
+std::optional<Device> DeviceSearchDialog::selectedDevice() const
+{
+	const QModelIndex current = deviceTable->currentIndex();
+	if (!current.isValid()) {
+		return std::nullopt;
+	}
+
+	const QStandardItem *idItem = deviceModel->item(current.row(), 0);
+	if (!idItem) {
+		return std::nullopt;
+	}
+
+	const auto device = devices.constFind(idItem->text());
+	if (device == devices.cend()) {
+		return std::nullopt;
+	}
+
+	return device.value();
 }
 
 void DeviceSearchDialog::showEvent(QShowEvent *event)
@@ -117,8 +156,9 @@ void DeviceSearchDialog::hideEvent(QHideEvent *event)
 void DeviceSearchDialog::startSearch()
 {
 	clearDevices();
-	if (!socket4 || socket4->state() != QAbstractSocket::BoundState || multicastInterfaces.isEmpty())
+	if (!socket4 || socket4->state() != QAbstractSocket::BoundState || multicastInterfaces.isEmpty()) {
 		return;
+	}
 
 	timer.start(3000);
 	sendDatagram();
@@ -136,23 +176,16 @@ void DeviceSearchDialog::refreshSearch()
 
 void DeviceSearchDialog::sendDatagram()
 {
-	std::string datagramStr =
-	    "M-SEARCH * HTTP/1.1\r\n"
-	    "HOST: " +
-	    std::string(SSDP_QUERY_IP) + ":" + std::to_string(SSDP_PORT) +
-	    "\r\n"
-	    "MAN: \"ssdp:discover\"\r\n"
-	    "MX: 2\r\n"
-	    "ST: ssdp:all\r\n\r\n";
-	QByteArray datagramData(datagramStr.c_str());
-	qint64 bytesSent = socket4->writeDatagram(datagramData.constData(),
-						  groupAddress4, SSDP_PORT);
+	const QByteArray datagramData = QByteArrayLiteral("M-SEARCH * HTTP/1.1\r\n") +
+					QByteArrayLiteral("HOST: " SSDP_QUERY_IP ":1900\r\n") +
+					QByteArrayLiteral("MAN: \"ssdp:discover\"\r\n") +
+					QByteArrayLiteral("MX: 2\r\n") + QByteArrayLiteral("ST: ssdp:all\r\n\r\n");
+	const qint64 bytesSent = socket4->writeDatagram(datagramData, groupAddress4, SSDP_PORT);
 	if (bytesSent == -1) {
 		qCritical() << "Failed to send datagram:" << socket4->errorString();
 	} else {
-		qDebug() << datagramStr;
-		qDebug() << bytesSent << "bytes to " << groupAddress4.toString() << ":"
-			 << SSDP_PORT;
+		qDebug() << datagramData;
+		qDebug() << bytesSent << "bytes to" << groupAddress4.toString() << ":" << SSDP_PORT;
 	}
 }
 
@@ -160,19 +193,22 @@ void DeviceSearchDialog::updateDevice(const Device &device)
 {
 	const QStringList values{device.id, device.ip, QString::number(device.mqttPort),
 				 QString::number(device.protocolVersion)};
+	devices.insert(device.id, device);
 
 	const auto existing = deviceRows.constFind(device.id);
 	if (existing != deviceRows.cend()) {
 		const int row = existing.value();
-		for (int column = 0; column < values.size(); ++column)
+		for (int column = 0; column < values.size(); ++column) {
 			deviceModel->item(row, column)->setText(values.at(column));
+		}
 		return;
 	}
 
 	QList<QStandardItem *> items;
 	items.reserve(values.size());
-	for (const QString &value : values)
+	for (const QString &value : values) {
 		items.append(new QStandardItem(value));
+	}
 
 	const int row = deviceModel->rowCount();
 	deviceModel->appendRow(items);
@@ -183,6 +219,15 @@ void DeviceSearchDialog::clearDevices()
 {
 	deviceModel->removeRows(0, deviceModel->rowCount());
 	deviceRows.clear();
+	devices.clear();
+	updateSelection();
+}
+
+void DeviceSearchDialog::updateSelection()
+{
+	if (selectButton) {
+		selectButton->setEnabled(selectedDevice().has_value());
+	}
 }
 
 void DeviceSearchDialog::readPendingDatagrams()
