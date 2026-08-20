@@ -218,6 +218,102 @@ static void falconm_get_capture_mode_result(void *data, calldata_t *cd)
 	calldata_set_bool(cd, "success", result.success);
 }
 
+static void falconm_query_capture_parameters(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	calldata_set_bool(cd, "success", d->stream && d->stream->send(QueryCaptureParametersRequest{}));
+}
+
+static void falconm_query_default_capture_parameters(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	calldata_set_bool(cd, "success", d->stream && d->stream->send(QueryDefaultCaptureParametersRequest{}));
+}
+
+static void falconm_get_capture_parameters(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	if (!d->stream) {
+		return;
+	}
+	const auto state = d->stream->state();
+	const auto &parameters = state.capture_parameters;
+	calldata_set_int(cd, "sequence", static_cast<long long>(state.capture_parameters_sequence));
+	calldata_set_int(cd, "mode", parameters.mode);
+	calldata_set_bool(cd, "watermark", parameters.watermark);
+	calldata_set_bool(cd, "mute", parameters.mute);
+	calldata_set_int(cd, "resolution_id", parameters.resolution_id);
+	calldata_set_string(cd, "resolution", parameters.resolution.c_str());
+	calldata_set_bool(cd, "auto_zoom", parameters.auto_zoom);
+	calldata_set_bool(cd, "auto_tracking", parameters.auto_tracking);
+	calldata_set_int(cd, "angle_range", parameters.angle_range);
+	calldata_set_int(cd, "accel_speed", parameters.accel_speed);
+	calldata_set_bool(cd, "has_countdown", parameters.has_countdown_time);
+	calldata_set_int(cd, "countdown", parameters.countdown_time);
+	calldata_set_bool(cd, "has_flicker", parameters.has_flicker_set);
+	calldata_set_int(cd, "flicker", parameters.flicker_set);
+	calldata_set_int(cd, "supported_resolution_count",
+			 static_cast<long long>(parameters.supported_resolutions.size()));
+}
+
+static void falconm_get_capture_supported_resolution(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	long long index = -1;
+	if (!d->stream || !calldata_get_int(cd, "index", &index) || index < 0) {
+		return;
+	}
+	const auto parameters = d->stream->state().capture_parameters;
+	if (static_cast<size_t>(index) >= parameters.supported_resolutions.size()) {
+		return;
+	}
+	const auto &resolution = parameters.supported_resolutions[static_cast<size_t>(index)];
+	calldata_set_int(cd, "resolution_id", resolution.id);
+	calldata_set_string(cd, "resolution", resolution.value.c_str());
+}
+
+static void falconm_get_default_capture_parameters(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	if (!d->stream) {
+		return;
+	}
+	const auto state = d->stream->state();
+	const auto &parameters = state.default_capture_parameters;
+	calldata_set_int(cd, "sequence", static_cast<long long>(state.default_capture_parameters_sequence));
+	calldata_set_int(cd, "mode", parameters.mode);
+	calldata_set_bool(cd, "watermark", parameters.watermark);
+	calldata_set_bool(cd, "mute", parameters.mute);
+	calldata_set_int(cd, "resolution_id", parameters.resolution_id);
+	calldata_set_string(cd, "resolution", parameters.resolution.c_str());
+	calldata_set_bool(cd, "auto_zoom", parameters.auto_zoom);
+	calldata_set_bool(cd, "auto_tracking", parameters.auto_tracking);
+	calldata_set_int(cd, "angle_range", parameters.angle_range);
+	calldata_set_int(cd, "accel_speed", parameters.accel_speed);
+	calldata_set_bool(cd, "has_countdown", parameters.has_countdown_time);
+	calldata_set_int(cd, "countdown", parameters.countdown_time);
+	calldata_set_bool(cd, "has_flicker", parameters.has_flicker_set);
+	calldata_set_int(cd, "flicker", parameters.flicker_set);
+	calldata_set_int(cd, "supported_resolution_count",
+			 static_cast<long long>(parameters.supported_resolutions.size()));
+}
+
+static void falconm_get_default_capture_supported_resolution(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	long long index = -1;
+	if (!d->stream || !calldata_get_int(cd, "index", &index) || index < 0) {
+		return;
+	}
+	const auto parameters = d->stream->state().default_capture_parameters;
+	if (static_cast<size_t>(index) >= parameters.supported_resolutions.size()) {
+		return;
+	}
+	const auto &resolution = parameters.supported_resolutions[static_cast<size_t>(index)];
+	calldata_set_int(cd, "resolution_id", resolution.id);
+	calldata_set_string(cd, "resolution", resolution.value.c_str());
+}
+
 void falconm_register_proc_handler(falconm_source *d)
 {
 	proc_handler_t *ph = obs_source_get_proc_handler(d->source);
@@ -239,6 +335,24 @@ void falconm_register_proc_handler(falconm_source *d)
 	proc_handler_add(ph, "void set_capture_mode(int mode, out bool success)", falconm_set_capture_mode, d);
 	proc_handler_add(ph, "void get_capture_mode_result(out int sequence, out bool success)",
 			 falconm_get_capture_mode_result, d);
+	proc_handler_add(ph, "void query_capture_parameters(out bool success)", falconm_query_capture_parameters, d);
+	proc_handler_add(
+		ph,
+		"void get_capture_parameters(out int sequence, out int mode, out bool watermark, out bool mute, out int resolution_id, out string resolution, out bool auto_zoom, out bool auto_tracking, out int angle_range, out int accel_speed, out bool has_countdown, out int countdown, out bool has_flicker, out int flicker, out int supported_resolution_count)",
+		falconm_get_capture_parameters, d);
+	proc_handler_add(
+		ph, "void get_capture_supported_resolution(int index, out int resolution_id, out string resolution)",
+		falconm_get_capture_supported_resolution, d);
+	proc_handler_add(ph, "void query_default_capture_parameters(out bool success)",
+			 falconm_query_default_capture_parameters, d);
+	proc_handler_add(
+		ph,
+		"void get_default_capture_parameters(out int sequence, out int mode, out bool watermark, out bool mute, out int resolution_id, out string resolution, out bool auto_zoom, out bool auto_tracking, out int angle_range, out int accel_speed, out bool has_countdown, out int countdown, out bool has_flicker, out int flicker, out int supported_resolution_count)",
+		falconm_get_default_capture_parameters, d);
+	proc_handler_add(
+		ph,
+		"void get_default_capture_supported_resolution(int index, out int resolution_id, out string resolution)",
+		falconm_get_default_capture_supported_resolution, d);
 }
 
 bool falconm_query_supported_modes(falconm_source *source, uint8_t max_version)

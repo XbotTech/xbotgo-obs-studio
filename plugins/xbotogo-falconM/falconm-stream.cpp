@@ -27,6 +27,24 @@ static void disable_media_sdk_logging()
 	UNUSED_PARAMETER(logging_disabled);
 }
 
+static std::string payload_to_hex(const uint8_t *payload, size_t size)
+{
+	if (!payload && size != 0) {
+		return "<null>";
+	}
+	static constexpr char hex[] = "0123456789abcdef";
+	std::string result;
+	result.reserve(size * 3);
+	for (size_t i = 0; i < size; ++i) {
+		if (i != 0) {
+			result.push_back(' ');
+		}
+		result.push_back(hex[payload[i] >> 4]);
+		result.push_back(hex[payload[i] & 0x0f]);
+	}
+	return result;
+}
+
 class FalconMStreamSdk final : public FalconMStream, private rtcsdk::BLRTCServerSessionListener {
 public:
 	FalconMStreamSdk()
@@ -42,6 +60,12 @@ public:
 		});
 		event_factories_.emplace(MotorAngleReportEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
 			return std::make_unique<MotorAngleReportEvent>();
+		});
+		event_factories_.emplace(CaptureParametersEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
+			return std::make_unique<CaptureParametersEvent>();
+		});
+		event_factories_.emplace(DefaultCaptureParametersEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
+			return std::make_unique<DefaultCaptureParametersEvent>();
 		});
 		disable_media_sdk_logging();
 		const int init_result = blink::utils::GlobalInit::getInstance().init(blink::utils::GlobalConfig());
@@ -151,10 +175,15 @@ public:
 	falconm_device_state state() const override
 	{
 		falconm_device_state result;
-		std::scoped_lock lock(supported_modes_mutex_, capture_mode_mutex_, angle_mutex_);
+		std::scoped_lock lock(supported_modes_mutex_, capture_mode_mutex_, capture_parameters_mutex_,
+				      angle_mutex_);
 		result.supported_modes = supported_modes_;
 		result.supported_modes_sequence = supported_modes_sequence_;
 		result.capture_mode_result = capture_mode_result_;
+		result.capture_parameters = capture_parameters_;
+		result.capture_parameters_sequence = capture_parameters_sequence_;
+		result.default_capture_parameters = default_capture_parameters_;
+		result.default_capture_parameters_sequence = default_capture_parameters_sequence_;
 		result.motor_angle = angle_;
 		return result;
 	}
@@ -181,7 +210,9 @@ private:
 	}
 	void onEncodedFrame(uint32_t ssrc, std::shared_ptr<MediaData> data) override
 	{
-		blog(LOG_INFO, "FalconM: onEncodedFrame ssrc=%u data=%p", ssrc, data.get());
+		UNUSED_PARAMETER(ssrc);
+		UNUSED_PARAMETER(data);
+		// blog(LOG_INFO, "FalconM: onEncodedFrame ssrc=%u data=%p", ssrc, data.get());
 	}
 	void onDecodedFrame(uint32_t ssrc, std::shared_ptr<MediaData> d) override
 	{
@@ -332,6 +363,14 @@ private:
 			std::lock_guard<std::mutex> lock(capture_mode_mutex_);
 			capture_mode_result_.success = capture->success();
 			++capture_mode_result_.sequence;
+		} else if (const auto *parameters = dynamic_cast<const CaptureParametersEvent *>(&event)) {
+			std::lock_guard<std::mutex> lock(capture_parameters_mutex_);
+			capture_parameters_ = parameters->parameters();
+			++capture_parameters_sequence_;
+		} else if (const auto *parameters = dynamic_cast<const DefaultCaptureParametersEvent *>(&event)) {
+			std::lock_guard<std::mutex> lock(capture_parameters_mutex_);
+			default_capture_parameters_ = parameters->parameters();
+			++default_capture_parameters_sequence_;
 		} else if (const auto *angle = dynamic_cast<const MotorAngleEvent *>(&event)) {
 			std::lock_guard<std::mutex> lock(angle_mutex_);
 			angle_ = angle->angle();
@@ -342,20 +381,22 @@ private:
 	}
 	void onPeerMessage(rtcsdk::BLNSPClient &client, const rtcsdk::MQTTMessage &m) override
 	{
+		const auto *payload = static_cast<const uint8_t *>(m.payload);
+		const std::string payload_hex = payload_to_hex(payload, m.payloadlen);
+		blog(LOG_INFO, "FalconM: onPeerMessage client='%s' topic='%s' payloadlen=%u payload=%s",
+		     client.name.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
 		if (!m.payload && m.payloadlen != 0) {
 			blog(LOG_ERROR, "FalconM: invalid signaling payload from '%s'", client.name.c_str());
 			return;
 		}
-
-		const auto *payload = static_cast<const uint8_t *>(m.payload);
 		const auto factory = event_factories_.find(m.topic);
 		if (factory != event_factories_.end()) {
 			auto event = factory->second();
 			if (event->parse(payload, m.payloadlen)) {
 				dispatchEvent(*event);
 			} else {
-				blog(LOG_WARNING, "FalconM: invalid %s payload, size=%u", m.topic.c_str(),
-				     m.payloadlen);
+				blog(LOG_WARNING, "FalconM: invalid %s payload, size=%u hex=%s", m.topic.c_str(),
+				     m.payloadlen, payload_hex.c_str());
 			}
 		}
 		if (signaling_cb_) {
@@ -365,8 +406,8 @@ private:
 	}
 	void onNewSrtStream(const MediaStreamInfo &stream) override
 	{
-		blog(LOG_INFO, "[socket_source] new srt stream ssrc %u type %d format %d", stream.ssrc,
-		     stream.mediaType, stream.mediaFormat);
+		// 	blog(LOG_INFO, "[socket_source] new srt stream ssrc %u type %d format %d", stream.ssrc,
+		// 	     stream.mediaType, stream.mediaFormat);
 		/* Wires up the SDK-internal decode pipeline (VideoDecoderIos/AudioDecoderIos);
 		 * no surface/renderer is created on mac, only on Android. */
 		if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO) {
@@ -392,8 +433,8 @@ private:
 	}
 	void onSrtPullStates(const SrtPullStatesMessage &state) override
 	{
-		blog(LOG_INFO, "FalconM: onSrtPullStates quality=%d loss=%.2f%%", state.networkQualityLevel,
-		     state.packetLossRate * 100.0);
+		// blog(LOG_INFO, "FalconM: onSrtPullStates quality=%d loss=%.2f%%", state.networkQualityLevel,
+		//      state.packetLossRate * 100.0);
 		if (state.networkQualityLevel == 0) {
 			blog(LOG_WARNING, "FalconM: SRT network quality is lowest, loss=%.2f%%",
 			     state.packetLossRate * 100.0);
@@ -413,6 +454,11 @@ private:
 	uint64_t supported_modes_sequence_ = 0;
 	mutable std::mutex capture_mode_mutex_;
 	falconm_capture_mode_result capture_mode_result_;
+	mutable std::mutex capture_parameters_mutex_;
+	falconm_capture_parameters capture_parameters_;
+	uint64_t capture_parameters_sequence_ = 0;
+	falconm_capture_parameters default_capture_parameters_;
+	uint64_t default_capture_parameters_sequence_ = 0;
 	decoded_callback decoded_cb_;
 	audio_callback audio_cb_;
 	signaling_callback signaling_cb_;

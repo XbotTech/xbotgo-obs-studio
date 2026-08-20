@@ -105,6 +105,61 @@ static void test_request_encoding()
 	assert(bxr.topic() == "BXR" && bxr.encodePayload() == std::vector<uint8_t>({0}));
 	const auto dgr = SetMotorAngleReportingRequest{true};
 	assert(dgr.topic() == "DGR" && dgr.encodePayload() == std::vector<uint8_t>({1}));
+	const auto anr = QueryCaptureParametersRequest{};
+	assert(anr.topic() == "ANR" && anr.encodePayload() == std::vector<uint8_t>({0}));
+	const auto axr = QueryDefaultCaptureParametersRequest{};
+	assert(axr.topic() == "AXR" && axr.encodePayload() == std::vector<uint8_t>({0}));
+}
+
+static void test_ana_parses_capture_parameters()
+{
+	std::vector<uint8_t> payload = {
+		0x00, 0x07, 0x01, 0x00, 0x03,
+	};
+	payload.resize(76, 0);
+	payload[5] = '1';
+	payload[6] = '0';
+	payload[7] = '8';
+	payload[8] = '0';
+	payload[9] = 'p';
+	payload[69] = 0x01;
+	payload[71] = 0x01;
+	payload[72] = 0x2c;
+	payload[73] = 0x00;
+	payload[74] = 0x64;
+	payload.insert(payload.end(), {0x00, 0x0a, 0x02, 0x01});
+	payload.insert(payload.end(), {0x04});
+	payload.insert(payload.end(), {'7', '2', '0', 'p'});
+	payload.resize(payload.size() + 60, 0);
+
+	CaptureParametersEvent event;
+	assert(event.topic() == "ANA");
+	assert(event.parse(payload.data(), payload.size()));
+	const auto &parameters = event.parameters();
+	assert(parameters.mode == 7);
+	assert(parameters.watermark);
+	assert(!parameters.mute);
+	assert(parameters.resolution_id == 3);
+	assert(parameters.resolution == "1080p");
+	assert(parameters.auto_zoom);
+	assert(!parameters.auto_tracking);
+	assert(parameters.angle_range == 300);
+	assert(parameters.accel_speed == 100);
+	assert(parameters.has_countdown_time && parameters.countdown_time == 10);
+	assert(parameters.has_flicker_set && parameters.flicker_set == 2);
+	assert(parameters.has_supported_resolutions);
+	assert(parameters.supported_resolutions.size() == 1);
+	assert(parameters.supported_resolutions[0].id == 4);
+	assert(parameters.supported_resolutions[0].value == "720p");
+
+	// AXA devices may return only part of the optional tail.
+	const std::vector<uint8_t> partial_payload(payload.begin(), payload.begin() + 77);
+	CaptureParametersEvent partial_event;
+	assert(partial_event.parse(partial_payload.data(), partial_payload.size()));
+	assert(!partial_event.parameters().has_countdown_time);
+
+	payload.pop_back();
+	assert(!event.parse(payload.data(), payload.size()));
 }
 
 static void test_event_classes_parse_responses()
@@ -133,6 +188,33 @@ static void test_event_classes_parse_responses()
 	assert(capture.topic() == "AVA");
 	assert(capture.parse(ava.data(), ava.size()));
 	assert(capture.success());
+
+	std::vector<uint8_t> axa(76, 0);
+	axa[0] = 0x00;
+	axa[1] = 0x09;
+	axa[4] = 0x02;
+	axa[5] = '4';
+	axa[6] = 'K';
+	axa[69] = 1;
+	axa[70] = 1;
+	axa[71] = 0x00;
+	axa[72] = 0x64;
+	axa[73] = 0x00;
+	axa[74] = 0x32;
+	axa.insert(axa.end(), {0x00, 0x05, 0x01, 0x01});
+	axa.resize(axa.size() + 65, 0);
+	axa[80] = 1;
+	DefaultCaptureParametersEvent defaults;
+	assert(defaults.topic() == "AXA");
+	assert(defaults.parse(axa.data(), axa.size()));
+	const auto &default_parameters = defaults.parameters();
+	assert(default_parameters.mode == 9);
+	assert(default_parameters.resolution == "4K");
+	assert(default_parameters.auto_zoom && default_parameters.auto_tracking);
+	assert(default_parameters.countdown_time == 5);
+	assert(default_parameters.flicker_set == 1);
+	assert(default_parameters.supported_resolutions.size() == 1);
+	assert(default_parameters.supported_resolutions[0].id == 1);
 }
 
 int main()
@@ -144,6 +226,7 @@ int main()
 	test_dfa_parses_limits_and_rejects_short_payloads();
 	test_basketball_mode_filter();
 	test_request_encoding();
+	test_ana_parses_capture_parameters();
 	test_event_classes_parse_responses();
 	return 0;
 }

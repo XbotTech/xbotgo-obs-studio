@@ -39,6 +39,10 @@ struct falconm_device_state {
 	falconm_supported_modes supported_modes;
 	uint64_t supported_modes_sequence = 0;
 	falconm_capture_mode_result capture_mode_result;
+	falconm_capture_parameters capture_parameters;
+	uint64_t capture_parameters_sequence = 0;
+	falconm_capture_parameters default_capture_parameters;
+	uint64_t default_capture_parameters_sequence = 0;
 	falconm_motor_angle motor_angle;
 };
 

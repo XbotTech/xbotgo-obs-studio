@@ -15,6 +15,7 @@
 #include <QLabel>
 #include <QPushButton>
 #include <QSignalBlocker>
+#include <QStringList>
 #include <QTimer>
 #include <QVBoxLayout>
 
@@ -181,6 +182,16 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	modeStatus = new QLabel(this);
 	modeSelector = new QComboBox(this);
 	modeRefresh = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Refresh"), this);
+	parametersRefresh = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Refresh"), this);
+	parametersStatus = new QLabel(this);
+	parametersText = new QLabel(this);
+	parametersText->setWordWrap(true);
+	parametersText->setTextInteractionFlags(Qt::TextSelectableByMouse);
+	defaultParametersRefresh = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Refresh"), this);
+	defaultParametersStatus = new QLabel(this);
+	defaultParametersText = new QLabel(this);
+	defaultParametersText->setWordWrap(true);
+	defaultParametersText->setTextInteractionFlags(Qt::TextSelectableByMouse);
 	connection->setText(QTStr(obs_source_active(source) ? "Basic.MainMenu.XBotGo.DeviceManagement.Active"
 							    : "Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
 
@@ -206,8 +217,25 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	modeLayout->addWidget(modeRefresh);
 	layout->addLayout(modeLayout);
 	layout->addWidget(modeStatus);
+	auto *parametersLayout = new QVBoxLayout;
+	parametersLayout->addWidget(
+		new QLabel(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureParameters"), this));
+	parametersLayout->addWidget(parametersStatus);
+	parametersLayout->addWidget(parametersText);
+	parametersLayout->addWidget(parametersRefresh, 0, Qt::AlignLeft);
+	layout->addLayout(parametersLayout);
+	auto *defaultParametersLayout = new QVBoxLayout;
+	defaultParametersLayout->addWidget(
+		new QLabel(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.DefaultCaptureParameters"), this));
+	defaultParametersLayout->addWidget(defaultParametersStatus);
+	defaultParametersLayout->addWidget(defaultParametersText);
+	defaultParametersLayout->addWidget(defaultParametersRefresh, 0, Qt::AlignLeft);
+	layout->addLayout(defaultParametersLayout);
 	layout->addLayout(grid);
 	connect(modeRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryModes);
+	connect(parametersRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryCaptureParameters);
+	connect(defaultParametersRefresh, &QPushButton::clicked, this,
+		&OBSBasicFalconMControl::QueryDefaultCaptureParameters);
 	connect(modeSelector, qOverload<int>(&QComboBox::currentIndexChanged), this,
 		&OBSBasicFalconMControl::SelectMode);
 
@@ -221,6 +249,14 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 		if (waitingForModeResult) {
 			RestoreConfirmedMode(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ModeTimeout"));
 		}
+	});
+	defaultParametersTimeout = new QTimer(this);
+	defaultParametersTimeout->setSingleShot(true);
+	defaultParametersTimeout->setInterval(5000);
+	connect(defaultParametersTimeout, &QTimer::timeout, this, [this] {
+		defaultParametersRefresh->setEnabled(obs_source_active(source));
+		defaultParametersStatus->setText(
+			QTStr("Basic.MainMenu.XBotGo.DeviceManagement.DefaultCaptureParametersQueryFailed"));
 	});
 	Refresh();
 }
@@ -273,6 +309,243 @@ void OBSBasicFalconMControl::QueryModes()
 	modeSelector->setEnabled(false);
 	modeRefresh->setEnabled(false);
 	modeStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ModeLoading"));
+}
+
+void OBSBasicFalconMControl::QueryCaptureParameters()
+{
+	if (!source || !obs_source_active(source)) {
+		parametersRefresh->setEnabled(false);
+		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		return;
+	}
+	calldata_t state;
+	calldata_init(&state);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_capture_parameters", &state);
+	long long sequence = 0;
+	calldata_get_int(&state, "sequence", &sequence);
+	calldata_free(&state);
+
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "query_capture_parameters", &cd);
+	bool success = false;
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	if (!success) {
+		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersQueryFailed"));
+		return;
+	}
+	parametersQuerySequence = static_cast<uint64_t>(sequence);
+	parametersRefresh->setEnabled(false);
+	parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersLoading"));
+}
+
+void OBSBasicFalconMControl::QueryDefaultCaptureParameters()
+{
+	if (!source || !obs_source_active(source)) {
+		defaultParametersRefresh->setEnabled(false);
+		defaultParametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		return;
+	}
+	calldata_t state;
+	calldata_init(&state);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_default_capture_parameters", &state);
+	long long sequence = 0;
+	calldata_get_int(&state, "sequence", &sequence);
+	calldata_free(&state);
+
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "query_default_capture_parameters", &cd);
+	bool success = false;
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	if (!success) {
+		defaultParametersStatus->setText(
+			QTStr("Basic.MainMenu.XBotGo.DeviceManagement.DefaultCaptureParametersQueryFailed"));
+		return;
+	}
+	defaultParametersQuerySequence = static_cast<uint64_t>(sequence);
+	defaultParametersRefresh->setEnabled(false);
+	defaultParametersTimeout->start();
+	defaultParametersStatus->setText(
+		QTStr("Basic.MainMenu.XBotGo.DeviceManagement.DefaultCaptureParametersLoading"));
+}
+
+void OBSBasicFalconMControl::UpdateCaptureParameters()
+{
+	if (!source || !obs_source_active(source)) {
+		return;
+	}
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_capture_parameters", &cd);
+	long long sequence = 0, mode = 0, resolutionId = 0, angleRange = 0, accelSpeed = 0;
+	long long countdown = 0, flicker = 0, resolutionCount = 0;
+	bool watermark = false, mute = false, autoZoom = false, autoTracking = false;
+	bool hasCountdown = false, hasFlicker = false;
+	const char *resolution = nullptr;
+	calldata_get_int(&cd, "sequence", &sequence);
+	calldata_get_int(&cd, "mode", &mode);
+	calldata_get_bool(&cd, "watermark", &watermark);
+	calldata_get_bool(&cd, "mute", &mute);
+	calldata_get_int(&cd, "resolution_id", &resolutionId);
+	calldata_get_string(&cd, "resolution", &resolution);
+	calldata_get_bool(&cd, "auto_zoom", &autoZoom);
+	calldata_get_bool(&cd, "auto_tracking", &autoTracking);
+	calldata_get_int(&cd, "angle_range", &angleRange);
+	calldata_get_int(&cd, "accel_speed", &accelSpeed);
+	calldata_get_bool(&cd, "has_countdown", &hasCountdown);
+	calldata_get_int(&cd, "countdown", &countdown);
+	calldata_get_bool(&cd, "has_flicker", &hasFlicker);
+	calldata_get_int(&cd, "flicker", &flicker);
+	calldata_get_int(&cd, "supported_resolution_count", &resolutionCount);
+	if (sequence <= 0 || static_cast<uint64_t>(sequence) <= parametersQuerySequence ||
+	    static_cast<uint64_t>(sequence) == displayedParametersSequence) {
+		calldata_free(&cd);
+		return;
+	}
+
+	QStringList supported;
+	for (long long index = 0; index < resolutionCount; ++index) {
+		calldata_t item;
+		calldata_init(&item);
+		calldata_set_int(&item, "index", index);
+		proc_handler_call(obs_source_get_proc_handler(source), "get_capture_supported_resolution", &item);
+		long long itemId = 0;
+		const char *itemValue = nullptr;
+		if (calldata_get_int(&item, "resolution_id", &itemId) &&
+		    calldata_get_string(&item, "resolution", &itemValue)) {
+			supported << QStringLiteral("%1: %2").arg(itemId).arg(QString::fromUtf8(itemValue));
+		}
+		calldata_free(&item);
+	}
+	const QString optional = hasCountdown ? QString::number(countdown) : QStringLiteral("N/A");
+	const QString flickerText = hasFlicker ? QString::number(flicker) : QStringLiteral("N/A");
+	parametersText->setText(
+		QStringLiteral(
+			"%1: %2\n%3: %4\n%5: %6\n%7: %8\n%9: %10\n%11: %12\n%13: %14\n%15: %16\n%17: %18\n%19: %20\n%21: %22\n%23: %24")
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterMode"))
+			.arg(mode)
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterResolution"))
+			.arg(QString::fromUtf8(resolution ? resolution : ""))
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterResolutionId"))
+			.arg(resolutionId)
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterWatermark"))
+			.arg(watermark ? QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Yes")
+				       : QTStr("Basic.MainMenu.XBotGo.DeviceManagement.No"))
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterMute"))
+			.arg(mute ? QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Yes")
+				  : QTStr("Basic.MainMenu.XBotGo.DeviceManagement.No"))
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAutoZoom"))
+			.arg(autoZoom ? QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Yes")
+				      : QTStr("Basic.MainMenu.XBotGo.DeviceManagement.No"))
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAutoTracking"))
+			.arg(autoTracking ? QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Yes")
+					  : QTStr("Basic.MainMenu.XBotGo.DeviceManagement.No"))
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAngleRange"))
+			.arg(angleRange)
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAccelSpeed"))
+			.arg(accelSpeed)
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterCountdown"))
+			.arg(optional)
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterFlicker"))
+			.arg(flickerText)
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterSupportedResolutions"))
+			.arg(supported.isEmpty() ? QStringLiteral("N/A") : supported.join(QStringLiteral(", "))));
+	parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersReady"));
+	parametersRefresh->setEnabled(true);
+	displayedParametersSequence = static_cast<uint64_t>(sequence);
+	calldata_free(&cd);
+}
+
+void OBSBasicFalconMControl::UpdateDefaultCaptureParameters()
+{
+	if (!source || !obs_source_active(source)) {
+		return;
+	}
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_default_capture_parameters", &cd);
+	long long sequence = 0, mode = 0, resolutionId = 0, angleRange = 0, accelSpeed = 0;
+	long long countdown = 0, flicker = 0, resolutionCount = 0;
+	bool watermark = false, mute = false, autoZoom = false, autoTracking = false;
+	bool hasCountdown = false, hasFlicker = false;
+	const char *resolution = nullptr;
+	calldata_get_int(&cd, "sequence", &sequence);
+	calldata_get_int(&cd, "mode", &mode);
+	calldata_get_bool(&cd, "watermark", &watermark);
+	calldata_get_bool(&cd, "mute", &mute);
+	calldata_get_int(&cd, "resolution_id", &resolutionId);
+	calldata_get_string(&cd, "resolution", &resolution);
+	calldata_get_bool(&cd, "auto_zoom", &autoZoom);
+	calldata_get_bool(&cd, "auto_tracking", &autoTracking);
+	calldata_get_int(&cd, "angle_range", &angleRange);
+	calldata_get_int(&cd, "accel_speed", &accelSpeed);
+	calldata_get_bool(&cd, "has_countdown", &hasCountdown);
+	calldata_get_int(&cd, "countdown", &countdown);
+	calldata_get_bool(&cd, "has_flicker", &hasFlicker);
+	calldata_get_int(&cd, "flicker", &flicker);
+	calldata_get_int(&cd, "supported_resolution_count", &resolutionCount);
+	if (sequence <= 0 || static_cast<uint64_t>(sequence) <= defaultParametersQuerySequence ||
+	    static_cast<uint64_t>(sequence) == displayedDefaultParametersSequence) {
+		calldata_free(&cd);
+		return;
+	}
+
+	QStringList supported;
+	for (long long index = 0; index < resolutionCount; ++index) {
+		calldata_t item;
+		calldata_init(&item);
+		calldata_set_int(&item, "index", index);
+		proc_handler_call(obs_source_get_proc_handler(source), "get_default_capture_supported_resolution",
+				  &item);
+		long long itemId = 0;
+		const char *itemValue = nullptr;
+		if (calldata_get_int(&item, "resolution_id", &itemId) &&
+		    calldata_get_string(&item, "resolution", &itemValue)) {
+			supported << QStringLiteral("%1: %2").arg(itemId).arg(QString::fromUtf8(itemValue));
+		}
+		calldata_free(&item);
+	}
+	const QString optional = hasCountdown ? QString::number(countdown) : QStringLiteral("N/A");
+	const QString flickerText = hasFlicker ? QString::number(flicker) : QStringLiteral("N/A");
+	defaultParametersText->setText(
+		QStringLiteral(
+			"%1: %2\n%3: %4\n%5: %6\n%7: %8\n%9: %10\n%11: %12\n%13: %14\n%15: %16\n%17: %18\n%19: %20\n%21: %22\n%23: %24")
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterMode"))
+			.arg(mode)
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterResolution"))
+			.arg(QString::fromUtf8(resolution ? resolution : ""))
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterResolutionId"))
+			.arg(resolutionId)
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterWatermark"))
+			.arg(watermark ? QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Yes")
+				       : QTStr("Basic.MainMenu.XBotGo.DeviceManagement.No"))
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterMute"))
+			.arg(mute ? QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Yes")
+				  : QTStr("Basic.MainMenu.XBotGo.DeviceManagement.No"))
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAutoZoom"))
+			.arg(autoZoom ? QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Yes")
+				      : QTStr("Basic.MainMenu.XBotGo.DeviceManagement.No"))
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAutoTracking"))
+			.arg(autoTracking ? QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Yes")
+					  : QTStr("Basic.MainMenu.XBotGo.DeviceManagement.No"))
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAngleRange"))
+			.arg(angleRange)
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAccelSpeed"))
+			.arg(accelSpeed)
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterCountdown"))
+			.arg(optional)
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterFlicker"))
+			.arg(flickerText)
+			.arg(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterSupportedResolutions"))
+			.arg(supported.isEmpty() ? QStringLiteral("N/A") : supported.join(QStringLiteral(", "))));
+	defaultParametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.DefaultCaptureParametersReady"));
+	defaultParametersRefresh->setEnabled(true);
+	defaultParametersTimeout->stop();
+	displayedDefaultParametersSequence = static_cast<uint64_t>(sequence);
+	calldata_free(&cd);
 }
 
 void OBSBasicFalconMControl::UpdateModes()
@@ -400,15 +673,24 @@ void OBSBasicFalconMControl::Refresh()
 		if (!sourceWasActive) {
 			sourceWasActive = true;
 			QueryModes();
+			QueryCaptureParameters();
+			QueryDefaultCaptureParameters();
 		}
 		UpdateModes();
 		HandleModeResult();
+		UpdateCaptureParameters();
+		UpdateDefaultCaptureParameters();
 	} else {
 		sourceWasActive = false;
 		if (!waitingForModeResult) {
 			modeSelector->setEnabled(false);
 			modeRefresh->setEnabled(false);
 		}
+		parametersRefresh->setEnabled(false);
+		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		defaultParametersRefresh->setEnabled(false);
+		defaultParametersTimeout->stop();
+		defaultParametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
 	}
 	calldata_t cd;
 	calldata_init(&cd);

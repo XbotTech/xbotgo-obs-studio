@@ -27,4 +27,16 @@ private:
 	uint16_t mode_;
 };
 
+class QueryCaptureParametersRequest final : public FalconRequest {
+public:
+	std::string_view topic() const override { return "ANR"; }
+	std::vector<uint8_t> encodePayload() const override { return {0}; }
+};
+
+class QueryDefaultCaptureParametersRequest final : public FalconRequest {
+public:
+	std::string_view topic() const override { return "AXR"; }
+	std::vector<uint8_t> encodePayload() const override { return {0}; }
+};
+
 } // namespace xbotgo
