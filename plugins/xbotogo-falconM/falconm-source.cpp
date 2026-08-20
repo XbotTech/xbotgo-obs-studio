@@ -100,12 +100,8 @@ static void falconm_activate(void *p)
 		return;
 	}
 	d->stopping = false;
-	d->stream->setDecodedFrameCallback([d](const obs_source_frame &f) {
-		output_video(d, f);
-	});
-	d->stream->setAudioCallback([d](const obs_source_audio &f) {
-		output_audio(d, f);
-	});
+	d->stream->setDecodedFrameCallback([d](const obs_source_frame &f) { output_video(d, f); });
+	d->stream->setAudioCallback([d](const obs_source_audio &f) { output_audio(d, f); });
 	if (!d->stream->connect(d->device_id, d->broker_address, d->broker_port)) {
 		blog(LOG_ERROR, "FalconM: connect/startStreaming failed");
 		d->active = false;
@@ -122,10 +118,12 @@ static void falconm_send_direction(void *data, calldata_t *cd)
 	auto *d = static_cast<falconm_source *>(data);
 	long long direction = -1, operation = -1;
 	if (!calldata_get_int(cd, "direction", &direction) || !calldata_get_int(cd, "operation", &operation) ||
-	    direction < 0 || direction > 4 || operation < 0 || operation > 2 || !d->stream)
+	    direction < 0 || direction > 4 || operation < 0 || operation > 2 || !d->stream) {
 		return;
-	calldata_set_bool(cd, "success", d->stream->sendDirection(static_cast<falconm_direction>(direction),
-													 static_cast<falconm_operation>(operation)));
+	}
+	calldata_set_bool(cd, "success",
+			  d->stream->sendDirection(static_cast<falconm_direction>(direction),
+						   static_cast<falconm_operation>(operation)));
 }
 
 static void falconm_query_angle(void *data, calldata_t *cd)
@@ -138,16 +136,18 @@ static void falconm_set_angle_reporting(void *data, calldata_t *cd)
 {
 	auto *d = static_cast<falconm_source *>(data);
 	bool enabled = false;
-	if (!calldata_get_bool(cd, "enabled", &enabled) || !d->stream)
+	if (!calldata_get_bool(cd, "enabled", &enabled) || !d->stream) {
 		return;
+	}
 	calldata_set_bool(cd, "success", d->stream->setMotorAngleReportEnabled(enabled));
 }
 
 static void falconm_get_angle(void *data, calldata_t *cd)
 {
 	auto *d = static_cast<falconm_source *>(data);
-	if (!d->stream)
+	if (!d->stream) {
 		return;
+	}
 	const auto angle = d->stream->motorAngle();
 	calldata_set_int(cd, "result", angle.result);
 	calldata_set_float(cd, "horizontal", angle.horizontal / 100.0);
@@ -156,13 +156,98 @@ static void falconm_get_angle(void *data, calldata_t *cd)
 	calldata_set_int(cd, "vertical_limit", angle.vertical_limit);
 }
 
+static void falconm_query_supported_modes_proc(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	long long version = 0;
+	if (!calldata_get_int(cd, "version", &version) || version < 0 || version > UINT8_MAX || !d->stream) {
+		calldata_set_bool(cd, "success", false);
+		return;
+	}
+	calldata_set_bool(cd, "success", d->stream->querySupportedModes(static_cast<uint8_t>(version)));
+}
+
+static void falconm_get_supported_modes(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	if (!d->stream) {
+		return;
+	}
+	const auto modes = d->stream->supportedModes();
+	calldata_set_int(cd, "sequence", static_cast<long long>(d->stream->supportedModesSequence()));
+	calldata_set_int(cd, "current_mode", modes.current_mode);
+	calldata_set_int(cd, "count", static_cast<long long>(modes.modes.size()));
+}
+
+static void falconm_get_supported_mode(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	long long index = -1;
+	if (!calldata_get_int(cd, "index", &index) || index < 0 || !d->stream) {
+		return;
+	}
+	const auto modes = d->stream->supportedModes();
+	if (static_cast<size_t>(index) >= modes.modes.size()) {
+		return;
+	}
+	const auto &mode = modes.modes[static_cast<size_t>(index)];
+	calldata_set_int(cd, "mode", mode.mode);
+	calldata_set_bool(cd, "beta", mode.beta);
+}
+
+static void falconm_set_capture_mode(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	long long mode = -1;
+	if (!calldata_get_int(cd, "mode", &mode) || mode < 0 || mode > UINT16_MAX || !d->stream) {
+		calldata_set_bool(cd, "success", false);
+		return;
+	}
+	calldata_set_bool(cd, "success", d->stream->setCaptureMode(static_cast<uint16_t>(mode)));
+}
+
+static void falconm_get_capture_mode_result(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	if (!d->stream) {
+		return;
+	}
+	const auto result = d->stream->captureModeResult();
+	calldata_set_int(cd, "sequence", static_cast<long long>(result.sequence));
+	calldata_set_bool(cd, "success", result.success);
+}
+
 void falconm_register_proc_handler(falconm_source *d)
 {
 	proc_handler_t *ph = obs_source_get_proc_handler(d->source);
-	proc_handler_add(ph, "void send_direction(int direction, int operation, out bool success)", falconm_send_direction, d);
+	proc_handler_add(ph, "void send_direction(int direction, int operation, out bool success)",
+			 falconm_send_direction, d);
 	proc_handler_add(ph, "void query_motor_angle(out bool success)", falconm_query_angle, d);
-	proc_handler_add(ph, "void set_motor_angle_reporting(bool enabled, out bool success)", falconm_set_angle_reporting, d);
-	proc_handler_add(ph, "void get_motor_angle(out int result, out float horizontal, out float vertical, out int horizontal_limit, out int vertical_limit)", falconm_get_angle, d);
+	proc_handler_add(ph, "void set_motor_angle_reporting(bool enabled, out bool success)",
+			 falconm_set_angle_reporting, d);
+	proc_handler_add(
+		ph,
+		"void get_motor_angle(out int result, out float horizontal, out float vertical, out int horizontal_limit, out int vertical_limit)",
+		falconm_get_angle, d);
+	proc_handler_add(ph, "void query_supported_modes(int version, out bool success)",
+			 falconm_query_supported_modes_proc, d);
+	proc_handler_add(ph, "void get_supported_modes(out int sequence, out int current_mode, out int count)",
+			 falconm_get_supported_modes, d);
+	proc_handler_add(ph, "void get_supported_mode(int index, out int mode, out bool beta)",
+			 falconm_get_supported_mode, d);
+	proc_handler_add(ph, "void set_capture_mode(int mode, out bool success)", falconm_set_capture_mode, d);
+	proc_handler_add(ph, "void get_capture_mode_result(out int sequence, out bool success)",
+			 falconm_get_capture_mode_result, d);
+}
+
+bool falconm_query_supported_modes(falconm_source *source, uint8_t max_version)
+{
+	return source && source->stream && source->stream->querySupportedModes(max_version);
+}
+
+falconm_supported_modes falconm_get_supported_modes(const falconm_source *source)
+{
+	return source && source->stream ? source->stream->supportedModes() : falconm_supported_modes{};
 }
 
 #ifdef XBOTGO_DEVICE_DISCOVERY
@@ -225,6 +310,6 @@ obs_source_info falconm_source_info = {.id = "xbotogo_falconm",
 				       .get_properties = falconm_properties,
 				       .update = falconm_update,
 				       .activate = falconm_activate,
-					       .deactivate = falconm_deactivate};
+				       .deactivate = falconm_deactivate};
 
 } // namespace xbotgo

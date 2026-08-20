@@ -8,10 +8,163 @@
 #include <qt-wrappers.hpp>
 
 #include <QGridLayout>
+#include <QComboBox>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QPushButton>
+#include <QSignalBlocker>
 #include <QTimer>
 #include <QVBoxLayout>
+
+namespace {
+constexpr int FalconMModeProtocolVersion = 3;
+
+QString ModeLabel(uint16_t mode, bool beta)
+{
+	QString label;
+	switch (mode) {
+	case 1:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.1");
+		break;
+	case 2:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.2");
+		break;
+	case 3:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.3");
+		break;
+	case 4:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.4");
+		break;
+	case 5:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.5");
+		break;
+	case 6:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.6");
+		break;
+	case 7:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.7");
+		break;
+	case 8:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.8");
+		break;
+	case 11:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.11");
+		break;
+	case 12:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.12");
+		break;
+	case 13:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.13");
+		break;
+	case 14:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.14");
+		break;
+	case 15:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.15");
+		break;
+	case 16:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.16");
+		break;
+	case 17:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.17");
+		break;
+	case 18:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.18");
+		break;
+	case 19:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.19");
+		break;
+	case 20:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.20");
+		break;
+	case 23:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.23");
+		break;
+	case 24:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.24");
+		break;
+	case 25:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.25");
+		break;
+	case 26:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.26");
+		break;
+	case 27:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.27");
+		break;
+	case 28:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.28");
+		break;
+	case 29:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.29");
+		break;
+	case 30:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.30");
+		break;
+	case 31:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.31");
+		break;
+	case 32:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.32");
+		break;
+	case 33:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.33");
+		break;
+	case 34:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.34");
+		break;
+	case 36:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.36");
+		break;
+	case 37:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.37");
+		break;
+	case 38:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.38");
+		break;
+	case 39:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.39");
+		break;
+	case 40:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.40");
+		break;
+	case 41:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.41");
+		break;
+	case 42:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.42");
+		break;
+	case 43:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.43");
+		break;
+	case 44:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.44");
+		break;
+	case 45:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.45");
+		break;
+	case 46:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.46");
+		break;
+	case 47:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.47");
+		break;
+	case 48:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.48");
+		break;
+	case 49:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.49");
+		break;
+	case 50:
+		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.50");
+		break;
+	default:
+		label = QStringLiteral("Mode %1").arg(mode);
+		break;
+	}
+	return beta ? QStringLiteral("%1 (Beta)").arg(label) : label;
+}
+} // namespace
 
 OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *parent)
 	: QDialog(parent),
@@ -19,10 +172,13 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 {
 	setAttribute(Qt::WA_DeleteOnClose);
 	setWindowTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Control"));
-	resize(360, 240);
+	resize(420, 300);
 
 	connection = new QLabel(this);
 	angles = new QLabel(this);
+	modeStatus = new QLabel(this);
+	modeSelector = new QComboBox(this);
+	modeRefresh = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Refresh"), this);
 	connection->setText(QTStr(obs_source_active(source) ? "Basic.MainMenu.XBotGo.DeviceManagement.Active"
 							    : "Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
 
@@ -42,11 +198,28 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	auto *layout = new QVBoxLayout(this);
 	layout->addWidget(connection);
 	layout->addWidget(angles);
+	auto *modeLayout = new QHBoxLayout;
+	modeLayout->addWidget(new QLabel(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureMode"), this));
+	modeLayout->addWidget(modeSelector, 1);
+	modeLayout->addWidget(modeRefresh);
+	layout->addLayout(modeLayout);
+	layout->addWidget(modeStatus);
 	layout->addLayout(grid);
+	connect(modeRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryModes);
+	connect(modeSelector, qOverload<int>(&QComboBox::currentIndexChanged), this,
+		&OBSBasicFalconMControl::SelectMode);
 
 	poller = new QTimer(this);
 	connect(poller, &QTimer::timeout, this, &OBSBasicFalconMControl::Refresh);
 	poller->start(500);
+	modeTimeout = new QTimer(this);
+	modeTimeout->setSingleShot(true);
+	modeTimeout->setInterval(5000);
+	connect(modeTimeout, &QTimer::timeout, this, [this] {
+		if (waitingForModeResult) {
+			RestoreConfirmedMode(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ModeTimeout"));
+		}
+	});
 	Refresh();
 }
 
@@ -67,13 +240,173 @@ void OBSBasicFalconMControl::Send(int direction, int operation)
 	calldata_free(&cd);
 }
 
+void OBSBasicFalconMControl::QueryModes()
+{
+	if (!source || !obs_source_active(source)) {
+		modeSelector->setEnabled(false);
+		modeRefresh->setEnabled(false);
+		modeStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		return;
+	}
+	calldata_t state;
+	calldata_init(&state);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_supported_modes", &state);
+	long long sequence = 0;
+	calldata_get_int(&state, "sequence", &sequence);
+	calldata_free(&state);
+
+	calldata_t cd;
+	calldata_init(&cd);
+	calldata_set_int(&cd, "version", FalconMModeProtocolVersion);
+	proc_handler_call(obs_source_get_proc_handler(source), "query_supported_modes", &cd);
+	bool success = false;
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	if (!success) {
+		modeStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ModeQueryFailed"));
+		return;
+	}
+	modeQuerySequence = static_cast<uint64_t>(sequence);
+	waitingForModes = true;
+	modeSelector->setEnabled(false);
+	modeRefresh->setEnabled(false);
+	modeStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ModeLoading"));
+}
+
+void OBSBasicFalconMControl::UpdateModes()
+{
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_supported_modes", &cd);
+	long long sequence = 0, current = 0, count = 0;
+	calldata_get_int(&cd, "sequence", &sequence);
+	calldata_get_int(&cd, "current_mode", &current);
+	calldata_get_int(&cd, "count", &count);
+	calldata_free(&cd);
+	if (sequence <= 0 || (waitingForModes && static_cast<uint64_t>(sequence) <= modeQuerySequence) ||
+	    static_cast<uint64_t>(sequence) == displayedModesSequence) {
+		return;
+	}
+
+	const QSignalBlocker blocker(modeSelector);
+	modeSelector->clear();
+	for (long long index = 0; index < count; ++index) {
+		calldata_t item;
+		calldata_init(&item);
+		calldata_set_int(&item, "index", index);
+		proc_handler_call(obs_source_get_proc_handler(source), "get_supported_mode", &item);
+		long long mode = 0;
+		bool beta = false;
+		if (calldata_get_int(&item, "mode", &mode)) {
+			calldata_get_bool(&item, "beta", &beta);
+			modeSelector->addItem(ModeLabel(static_cast<uint16_t>(mode), beta), mode);
+		}
+		calldata_free(&item);
+	}
+	const int currentIndex = modeSelector->findData(current);
+	modeSelector->setCurrentIndex(currentIndex);
+	confirmedMode = currentIndex >= 0 ? static_cast<int>(current) : -1;
+	displayedModesSequence = static_cast<uint64_t>(sequence);
+	waitingForModes = false;
+	modeSelector->setEnabled(!waitingForModeResult && modeSelector->count() > 0);
+	modeRefresh->setEnabled(!waitingForModeResult);
+	modeStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ModeReady"));
+}
+
+void OBSBasicFalconMControl::SelectMode(int index)
+{
+	if (index < 0 || waitingForModes || waitingForModeResult || !source || !obs_source_active(source)) {
+		return;
+	}
+	const int mode = modeSelector->itemData(index).toInt();
+	if (mode == confirmedMode) {
+		return;
+	}
+	calldata_t state;
+	calldata_init(&state);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_capture_mode_result", &state);
+	long long sequence = 0;
+	calldata_get_int(&state, "sequence", &sequence);
+	calldata_free(&state);
+
+	calldata_t cd;
+	calldata_init(&cd);
+	calldata_set_int(&cd, "mode", mode);
+	proc_handler_call(obs_source_get_proc_handler(source), "set_capture_mode", &cd);
+	bool success = false;
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	if (!success) {
+		RestoreConfirmedMode(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ModeSetFailed"));
+		return;
+	}
+	modeResultSequence = static_cast<uint64_t>(sequence);
+	waitingForModeResult = true;
+	modeSelector->setEnabled(false);
+	modeRefresh->setEnabled(false);
+	modeStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ModeApplying"));
+	modeTimeout->start();
+}
+
+void OBSBasicFalconMControl::HandleModeResult()
+{
+	if (!waitingForModeResult) {
+		return;
+	}
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_capture_mode_result", &cd);
+	long long sequence = 0;
+	bool success = false;
+	calldata_get_int(&cd, "sequence", &sequence);
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	if (static_cast<uint64_t>(sequence) <= modeResultSequence) {
+		return;
+	}
+	waitingForModeResult = false;
+	modeTimeout->stop();
+	if (success) {
+		modeStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ModeApplied"));
+		QueryModes();
+	} else {
+		RestoreConfirmedMode(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ModeSetFailed"));
+	}
+}
+
+void OBSBasicFalconMControl::RestoreConfirmedMode(const QString &status)
+{
+	waitingForModeResult = false;
+	modeTimeout->stop();
+	const QSignalBlocker blocker(modeSelector);
+	modeSelector->setCurrentIndex(modeSelector->findData(confirmedMode));
+	modeSelector->setEnabled(obs_source_active(source) && modeSelector->count() > 0);
+	modeRefresh->setEnabled(obs_source_active(source));
+	modeStatus->setText(status);
+}
+
 void OBSBasicFalconMControl::Refresh()
 {
 	if (!source) {
 		return;
 	}
-	connection->setText(QTStr(obs_source_active(source) ? "Basic.MainMenu.XBotGo.DeviceManagement.Active"
-							    : "Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+	const bool active = obs_source_active(source);
+	connection->setText(QTStr(active ? "Basic.MainMenu.XBotGo.DeviceManagement.Active"
+					 : "Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+	if (active) {
+		if (!sourceWasActive) {
+			sourceWasActive = true;
+			QueryModes();
+		}
+		UpdateModes();
+		HandleModeResult();
+	} else {
+		sourceWasActive = false;
+		if (!waitingForModeResult) {
+			modeSelector->setEnabled(false);
+			modeRefresh->setEnabled(false);
+		}
+	}
 	calldata_t cd;
 	calldata_init(&cd);
 	proc_handler_call(obs_source_get_proc_handler(source), "get_motor_angle", &cd);

@@ -1,5 +1,7 @@
 #pragma once
 
+#include "falconm-protocol.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -39,23 +41,34 @@ struct falconm_motor_angle {
 	uint16_t result = 0xffff;
 };
 
+struct falconm_capture_mode_result {
+	uint64_t sequence = 0;
+	bool success = false;
+};
+
 class FalconMStream {
 public:
 	using decoded_callback = std::function<void(const obs_source_frame &)>;
 	using audio_callback = std::function<void(const obs_source_audio &)>;
 	using signaling_callback = std::function<void(const std::string &, const std::vector<uint8_t> &)>;
+	using supported_modes_callback = std::function<void(const falconm_supported_modes &)>;
 
 	virtual ~FalconMStream() = default;
-	virtual bool connect(const std::string &device_id, const std::string &broker_address,
-			    uint16_t broker_port) = 0;
-	virtual bool startStreaming(const uint32_t video_ssrc , const uint32_t audio_ssrc, const uint32_t dataSsrc) = 0;
+	virtual bool connect(const std::string &device_id, const std::string &broker_address, uint16_t broker_port) = 0;
+	virtual bool startStreaming(const uint32_t video_ssrc, const uint32_t audio_ssrc, const uint32_t dataSsrc) = 0;
 	virtual bool stopStreaming() = 0;
 	virtual bool isStreaming() const = 0;
 	virtual void disconnect() = 0;
 	virtual void setDecodedFrameCallback(decoded_callback callback) = 0;
 	virtual void setAudioCallback(audio_callback callback) = 0;
 	virtual void setSignalingCallback(signaling_callback callback) = 0;
+	virtual void setSupportedModesCallback(supported_modes_callback callback) = 0;
 	virtual bool sendSignalingMessage(const std::string &topic, const uint8_t *data, size_t size) = 0;
+	virtual bool querySupportedModes(uint8_t max_version) = 0;
+	virtual falconm_supported_modes supportedModes() const = 0;
+	virtual uint64_t supportedModesSequence() const = 0;
+	virtual bool setCaptureMode(uint16_t mode) = 0;
+	virtual falconm_capture_mode_result captureModeResult() const = 0;
 	virtual bool sendDirection(falconm_direction direction, falconm_operation operation) = 0;
 	virtual bool queryMotorAngle() = 0;
 	virtual bool setMotorAngleReportEnabled(bool enabled) = 0;

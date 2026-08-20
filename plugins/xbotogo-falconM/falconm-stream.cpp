@@ -56,8 +56,7 @@ public:
 		disconnect();
 		delete session_;
 	}
-	bool connect(const std::string &device_id, const std::string &broker_address,
-			    uint16_t broker_port) override
+	bool connect(const std::string &device_id, const std::string &broker_address, uint16_t broker_port) override
 	{
 		if (!session_ || broker_address.empty() || device_id.empty()) {
 			blog(LOG_ERROR, "FalconM: invalid session or connection settings");
@@ -83,7 +82,9 @@ public:
 		connected_ = true;
 		return true;
 	}
-	bool startStreaming(const uint32_t video_ssrc = kDefaultVideoSsrc, const uint32_t audio_ssrc = kDefaultAudioSsrc, const uint32_t dataSsrc = kDefaultDataSsrc) override
+	bool startStreaming(const uint32_t video_ssrc = kDefaultVideoSsrc,
+			    const uint32_t audio_ssrc = kDefaultAudioSsrc,
+			    const uint32_t dataSsrc = kDefaultDataSsrc) override
 	{
 		if (!connected_ || streaming_) {
 			return connected_ && streaming_;
@@ -111,10 +112,7 @@ public:
 		}
 		return result == 0;
 	}
-	bool isStreaming() const override
-	{
-		return streaming_;
-	}
+	bool isStreaming() const override { return streaming_; }
 	void disconnect() override
 	{
 		stopStreaming();
@@ -126,17 +124,13 @@ public:
 		}
 		connected_ = false;
 	}
-	void setDecodedFrameCallback(decoded_callback cb) override
+	void setDecodedFrameCallback(decoded_callback cb) override { decoded_cb_ = std::move(cb); }
+	void setAudioCallback(audio_callback cb) override { audio_cb_ = std::move(cb); }
+	void setSignalingCallback(signaling_callback cb) override { signaling_cb_ = std::move(cb); }
+	void setSupportedModesCallback(supported_modes_callback cb) override
 	{
-		decoded_cb_ = std::move(cb);
-	}
-	void setAudioCallback(audio_callback cb) override
-	{
-		audio_cb_ = std::move(cb);
-	}
-	void setSignalingCallback(signaling_callback cb) override
-	{
-		signaling_cb_ = std::move(cb);
+		std::lock_guard<std::mutex> lock(supported_modes_mutex_);
+		supported_modes_cb_ = std::move(cb);
 	}
 	bool sendSignalingMessage(const std::string &topic, const uint8_t *data, size_t size) override
 	{
@@ -148,6 +142,31 @@ public:
 		m.payload = const_cast<uint8_t *>(data);
 		m.payloadlen = (uint32_t)size;
 		return session_->sendPeerMessage(device_id_, m) == 0;
+	}
+	bool querySupportedModes(uint8_t max_version) override
+	{
+		const auto payload = falconm_build_supported_modes_request(max_version);
+		return sendSignalingMessage("BPR", payload.data(), payload.size());
+	}
+	falconm_supported_modes supportedModes() const override
+	{
+		std::lock_guard<std::mutex> lock(supported_modes_mutex_);
+		return supported_modes_;
+	}
+	uint64_t supportedModesSequence() const override
+	{
+		std::lock_guard<std::mutex> lock(supported_modes_mutex_);
+		return supported_modes_sequence_;
+	}
+	bool setCaptureMode(uint16_t mode) override
+	{
+		const auto payload = falconm_build_capture_mode_request(mode);
+		return sendSignalingMessage("AVR", payload.data(), payload.size());
+	}
+	falconm_capture_mode_result captureModeResult() const override
+	{
+		std::lock_guard<std::mutex> lock(capture_mode_mutex_);
+		return capture_mode_result_;
 	}
 	bool sendDirection(falconm_direction direction, falconm_operation operation) override
 	{
@@ -189,7 +208,6 @@ private:
 			blog(LOG_ERROR, "FalconM: peer connection failed, status=%d", status);
 			return;
 		}
-		
 	}
 	void onEncodedFrame(uint32_t ssrc, std::shared_ptr<MediaData> data) override
 	{
@@ -204,12 +222,15 @@ private:
 		// blog(LOG_INFO, "FalconM: onDecodedFrame ssrc=%u format=%d type=%d", ssrc, d->format, d->type);
 		if (d->format == MEDIA_DATA_FORMAT_IMAGE_BUFFER) {
 			if (!d->bufferObj) {
-				blog(LOG_ERROR, "FalconM: IMAGE_BUFFER decoded frame has null bufferObj, ssrc=%u", ssrc);
+				blog(LOG_ERROR, "FalconM: IMAGE_BUFFER decoded frame has null bufferObj, ssrc=%u",
+				     ssrc);
 				return;
 			}
 			CVPixelBufferRef pixel_buffer = (CVPixelBufferRef)d->bufferObj->getObject();
-			if (!pixel_buffer || CVPixelBufferLockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly) != kCVReturnSuccess)
+			if (!pixel_buffer || CVPixelBufferLockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly) !=
+						     kCVReturnSuccess) {
 				return;
+			}
 			obs_source_frame frame = {};
 			frame.width = (uint32_t)CVPixelBufferGetWidth(pixel_buffer);
 			frame.height = (uint32_t)CVPixelBufferGetHeight(pixel_buffer);
@@ -228,33 +249,41 @@ private:
 				range = VIDEO_RANGE_FULL;
 				break;
 			default:
-				blog(LOG_WARNING, "FalconM: unsupported CVPixelBuffer format 0x%08x", (unsigned)pixel_format);
+				blog(LOG_WARNING, "FalconM: unsupported CVPixelBuffer format 0x%08x",
+				     (unsigned)pixel_format);
 				CVPixelBufferUnlockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly);
 				return;
 			}
-			CFTypeRef matrix_attachment = CVBufferCopyAttachment(pixel_buffer, kCVImageBufferYCbCrMatrixKey, nullptr);
-			if (matrix_attachment == kCVImageBufferYCbCrMatrix_ITU_R_601_4)
+			CFTypeRef matrix_attachment =
+				CVBufferCopyAttachment(pixel_buffer, kCVImageBufferYCbCrMatrixKey, nullptr);
+			if (matrix_attachment == kCVImageBufferYCbCrMatrix_ITU_R_601_4) {
 				colorspace = VIDEO_CS_601;
-			else if (matrix_attachment == kCVImageBufferYCbCrMatrix_ITU_R_709_2)
+			} else if (matrix_attachment == kCVImageBufferYCbCrMatrix_ITU_R_709_2) {
 				colorspace = VIDEO_CS_709;
-			else if (matrix_attachment == kCVImageBufferYCbCrMatrix_ITU_R_2020)
+			} else if (matrix_attachment == kCVImageBufferYCbCrMatrix_ITU_R_2020) {
 				colorspace = VIDEO_CS_2100_PQ;
-			CFTypeRef primaries_attachment = CVBufferCopyAttachment(pixel_buffer, kCVImageBufferColorPrimariesKey, nullptr);
-			if (primaries_attachment == kCVImageBufferColorPrimaries_ITU_R_2020)
+			}
+			CFTypeRef primaries_attachment =
+				CVBufferCopyAttachment(pixel_buffer, kCVImageBufferColorPrimariesKey, nullptr);
+			if (primaries_attachment == kCVImageBufferColorPrimaries_ITU_R_2020) {
 				colorspace = VIDEO_CS_2100_PQ;
-			if (matrix_attachment)
+			}
+			if (matrix_attachment) {
 				CFRelease(matrix_attachment);
-			if (primaries_attachment)
+			}
+			if (primaries_attachment) {
 				CFRelease(primaries_attachment);
+			}
 			size_t plane_count = CVPixelBufferGetPlaneCount(pixel_buffer);
 			for (size_t i = 0; i < plane_count && i < MAX_AV_PLANES; i++) {
 				frame.data[i] = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, i);
 				frame.linesize[i] = (uint32_t)CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, i);
 			}
-			video_format_get_parameters_for_format(colorspace, range, frame.format,
-							      frame.color_matrix, frame.color_range_min, frame.color_range_max);
-			if (decoded_cb_)
+			video_format_get_parameters_for_format(colorspace, range, frame.format, frame.color_matrix,
+							       frame.color_range_min, frame.color_range_max);
+			if (decoded_cb_) {
 				decoded_cb_(frame);
+			}
 			CVPixelBufferUnlockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly);
 			return;
 		}
@@ -323,7 +352,33 @@ private:
 			return;
 		}
 		const auto *payload = static_cast<const uint8_t *>(m.payload);
-		if (m.topic == "BXA" && m.payloadlen >= 10) {
+		if (m.topic == "BPA") {
+			falconm_supported_modes modes;
+			if (falconm_parse_supported_modes(payload, m.payloadlen, modes)) {
+				supported_modes_callback callback;
+				{
+					std::lock_guard<std::mutex> lock(supported_modes_mutex_);
+					supported_modes_ = modes;
+					++supported_modes_sequence_;
+					callback = supported_modes_cb_;
+				}
+				if (m.payloadlen >= 2 && (m.payloadlen - 2) % 3 != 0) {
+					blog(LOG_WARNING,
+					     "FalconM: BPA payload has incomplete trailing mode entry, size=%u",
+					     m.payloadlen);
+				}
+				if (callback) {
+					callback(modes);
+				}
+			}
+		} else if (m.topic == "AVA") {
+			bool success = false;
+			if (falconm_parse_capture_mode_result(payload, m.payloadlen, success)) {
+				std::lock_guard<std::mutex> lock(capture_mode_mutex_);
+				capture_mode_result_.success = success;
+				++capture_mode_result_.sequence;
+			}
+		} else if (m.topic == "BXA" && m.payloadlen >= 10) {
 			falconm_motor_angle angle;
 			angle.result = read_u16_be(payload);
 			angle.horizontal = static_cast<int32_t>(read_u32_be(payload + 2));
@@ -347,22 +402,24 @@ private:
 	}
 	void onNewSrtStream(const MediaStreamInfo &stream) override
 	{
-		blog(LOG_INFO, "[socket_source] new srt stream ssrc %u type %d format %d", stream.ssrc, stream.mediaType,
-		     stream.mediaFormat);
+		blog(LOG_INFO, "[socket_source] new srt stream ssrc %u type %d format %d", stream.ssrc,
+		     stream.mediaType, stream.mediaFormat);
 		/* Wires up the SDK-internal decode pipeline (VideoDecoderIos/AudioDecoderIos);
 		 * no surface/renderer is created on mac, only on Android. */
-		if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO)
+		if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO) {
 			session_->addSurface(stream.ssrc, rtcsdk::VideoRenderParams());
-		else if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_AUDIO)
+		} else if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_AUDIO) {
 			session_->addRemoteAudioPlayer(stream.ssrc);
+		}
 	}
 	void onDeleteSrtStream(const MediaStreamInfo &stream) override
 	{
 		blog(LOG_INFO, "FalconM: onDeleteSrtStream ssrc=%u", stream.ssrc);
-		if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO)
+		if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO) {
 			session_->removeSurface(stream.ssrc);
-		else if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_AUDIO)
+		} else if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_AUDIO) {
 			session_->removeRemoteAudioPlayer(stream.ssrc);
+		}
 		streaming_ = false;
 		blog(LOG_WARNING, "FalconM: SRT stream deleted, ssrc=%u", stream.ssrc);
 	}
@@ -375,7 +432,8 @@ private:
 		blog(LOG_INFO, "FalconM: onSrtPullStates quality=%d loss=%.2f%%", state.networkQualityLevel,
 		     state.packetLossRate * 100.0);
 		if (state.networkQualityLevel == 0) {
-			blog(LOG_WARNING, "FalconM: SRT network quality is lowest, loss=%.2f%%", state.packetLossRate * 100.0);
+			blog(LOG_WARNING, "FalconM: SRT network quality is lowest, loss=%.2f%%",
+			     state.packetLossRate * 100.0);
 		}
 	}
 
@@ -386,9 +444,15 @@ private:
 	std::atomic<bool> streaming_{false};
 	mutable std::mutex angle_mutex_;
 	falconm_motor_angle angle_;
+	mutable std::mutex supported_modes_mutex_;
+	falconm_supported_modes supported_modes_;
+	uint64_t supported_modes_sequence_ = 0;
+	mutable std::mutex capture_mode_mutex_;
+	falconm_capture_mode_result capture_mode_result_;
 	decoded_callback decoded_cb_;
 	audio_callback audio_cb_;
 	signaling_callback signaling_cb_;
+	supported_modes_callback supported_modes_cb_;
 };
 
 std::unique_ptr<FalconMStream> falconm_stream_create()
