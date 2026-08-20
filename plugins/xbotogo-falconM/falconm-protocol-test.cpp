@@ -61,6 +61,17 @@ static void test_ava_parses_success_and_rejects_invalid_payloads()
 	assert(!falconm_parse_capture_mode_result(nullptr, 0, success));
 }
 
+static void test_basketball_mode_filter()
+{
+	for (const uint16_t mode : {uint16_t(5), uint16_t(6), uint16_t(7), uint16_t(8), uint16_t(36), uint16_t(37),
+				    uint16_t(38), uint16_t(39)}) {
+		assert(falconm_is_basketball_mode(mode));
+	}
+	for (const uint16_t mode : {uint16_t(1), uint16_t(20), uint16_t(41), uint16_t(50), uint16_t(65535)}) {
+		assert(!falconm_is_basketball_mode(mode));
+	}
+}
+
 int main()
 {
 	test_bpr_builds_version_payload();
@@ -68,5 +79,6 @@ int main()
 	test_bpa_rejects_short_payload();
 	test_avr_builds_big_endian_mode_payload();
 	test_ava_parses_success_and_rejects_invalid_payloads();
+	test_basketball_mode_filter();
 	return 0;
 }

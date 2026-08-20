@@ -7,6 +7,8 @@
 #include <callback/calldata.h>
 #include <qt-wrappers.hpp>
 
+#include "../../plugins/xbotogo-falconM/falconm-protocol.hpp"
+
 #include <QGridLayout>
 #include <QComboBox>
 #include <QHBoxLayout>
@@ -297,7 +299,8 @@ void OBSBasicFalconMControl::UpdateModes()
 		proc_handler_call(obs_source_get_proc_handler(source), "get_supported_mode", &item);
 		long long mode = 0;
 		bool beta = false;
-		if (calldata_get_int(&item, "mode", &mode)) {
+		if (calldata_get_int(&item, "mode", &mode) &&
+		    xbotgo::falconm_is_basketball_mode(static_cast<uint16_t>(mode))) {
 			calldata_get_bool(&item, "beta", &beta);
 			modeSelector->addItem(ModeLabel(static_cast<uint16_t>(mode), beta), mode);
 		}
