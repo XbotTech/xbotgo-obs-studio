@@ -9,10 +9,15 @@ add_library(xbotogo-falconM MODULE
   xbotogo-falconM.cpp
   falconm-source.cpp
   falconm-stream.cpp
-  falconm-protocol.cpp
   falconm.hpp
   falconm-stream.hpp
   falconm-protocol.hpp
+  protocol/falcon-request.hpp
+  protocol/falcon-camera-requests.hpp
+  protocol/falcon-mode-requests.hpp
+  protocol/falcon-protocol-parser.hpp
+  protocol/falcon-event.hpp
+  protocol/falcon-events.hpp
   ${FALCONM_SDK_HEADERS}
 )
 
@@ -50,7 +55,6 @@ set_target_properties_obs(xbotogo-falconM PROPERTIES FOLDER plugins)
 if(ENABLE_UNIT_TESTS)
   add_executable(falconm-protocol-test
     falconm-protocol-test.cpp
-    falconm-protocol.cpp
     falconm-protocol.hpp
   )
   target_include_directories(falconm-protocol-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")

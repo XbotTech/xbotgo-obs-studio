@@ -1,4 +1,5 @@
 #include "falconm-stream.hpp"
+#include "protocol/falcon-events.hpp"
 #include <BLRTCServerSession.h>
 #include <GlobalInit.h>
 #include <log.h>
@@ -8,6 +9,7 @@
 #include <cstring>
 #include <CoreVideo/CoreVideo.h>
 #include <mutex>
+#include <unordered_map>
 
 using namespace blink::media;
 
@@ -25,20 +27,22 @@ static void disable_media_sdk_logging()
 	UNUSED_PARAMETER(logging_disabled);
 }
 
-static uint32_t read_u32_be(const uint8_t *p)
-{
-	return (uint32_t(p[0]) << 24) | (uint32_t(p[1]) << 16) | (uint32_t(p[2]) << 8) | uint32_t(p[3]);
-}
-
-static uint16_t read_u16_be(const uint8_t *p)
-{
-	return uint16_t(uint16_t(p[0]) << 8) | uint16_t(p[1]);
-}
-
 class FalconMStreamSdk final : public FalconMStream, private rtcsdk::BLRTCServerSessionListener {
 public:
 	FalconMStreamSdk()
 	{
+		event_factories_.emplace(SupportedModesEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
+			return std::make_unique<SupportedModesEvent>();
+		});
+		event_factories_.emplace(CaptureModeResultEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
+			return std::make_unique<CaptureModeResultEvent>();
+		});
+		event_factories_.emplace(MotorAngleEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
+			return std::make_unique<MotorAngleEvent>();
+		});
+		event_factories_.emplace(MotorAngleReportEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
+			return std::make_unique<MotorAngleReportEvent>();
+		});
 		disable_media_sdk_logging();
 		const int init_result = blink::utils::GlobalInit::getInstance().init(blink::utils::GlobalConfig());
 		if (init_result != 0) {
@@ -132,61 +136,27 @@ public:
 		std::lock_guard<std::mutex> lock(supported_modes_mutex_);
 		supported_modes_cb_ = std::move(cb);
 	}
-	bool sendSignalingMessage(const std::string &topic, const uint8_t *data, size_t size) override
+	bool send(const FalconRequest &request) override
 	{
-		if (!session_ || !connected_ || (!data && size)) {
+		const auto payload = request.encodePayload();
+		if (!session_ || !connected_) {
 			return false;
 		}
 		rtcsdk::MQTTMessage m;
-		m.topic = topic;
-		m.payload = const_cast<uint8_t *>(data);
-		m.payloadlen = (uint32_t)size;
+		m.topic = std::string(request.topic());
+		m.payload = const_cast<uint8_t *>(payload.data());
+		m.payloadlen = (uint32_t)payload.size();
 		return session_->sendPeerMessage(device_id_, m) == 0;
 	}
-	bool querySupportedModes(uint8_t max_version) override
+	falconm_device_state state() const override
 	{
-		const auto payload = falconm_build_supported_modes_request(max_version);
-		return sendSignalingMessage("BPR", payload.data(), payload.size());
-	}
-	falconm_supported_modes supportedModes() const override
-	{
-		std::lock_guard<std::mutex> lock(supported_modes_mutex_);
-		return supported_modes_;
-	}
-	uint64_t supportedModesSequence() const override
-	{
-		std::lock_guard<std::mutex> lock(supported_modes_mutex_);
-		return supported_modes_sequence_;
-	}
-	bool setCaptureMode(uint16_t mode) override
-	{
-		const auto payload = falconm_build_capture_mode_request(mode);
-		return sendSignalingMessage("AVR", payload.data(), payload.size());
-	}
-	falconm_capture_mode_result captureModeResult() const override
-	{
-		std::lock_guard<std::mutex> lock(capture_mode_mutex_);
-		return capture_mode_result_;
-	}
-	bool sendDirection(falconm_direction direction, falconm_operation operation) override
-	{
-		const uint8_t payload[] = {static_cast<uint8_t>(direction), static_cast<uint8_t>(operation)};
-		return sendSignalingMessage("AYR", payload, sizeof(payload));
-	}
-	bool queryMotorAngle() override
-	{
-		const uint8_t payload = 0;
-		return sendSignalingMessage("BXR", &payload, 1);
-	}
-	bool setMotorAngleReportEnabled(bool enabled) override
-	{
-		const uint8_t payload = enabled ? 1 : 0;
-		return sendSignalingMessage("DGR", &payload, 1);
-	}
-	falconm_motor_angle motorAngle() const override
-	{
-		std::lock_guard<std::mutex> lock(angle_mutex_);
-		return angle_;
+		falconm_device_state result;
+		std::scoped_lock lock(supported_modes_mutex_, capture_mode_mutex_, angle_mutex_);
+		result.supported_modes = supported_modes_;
+		result.supported_modes_sequence = supported_modes_sequence_;
+		result.capture_mode_result = capture_mode_result_;
+		result.motor_angle = angle_;
+		return result;
 	}
 
 private:
@@ -199,8 +169,8 @@ private:
 		blog(LOG_INFO, "FalconM: onPeerConnectStatus client=%s status=%d", client.name.c_str(), status);
 		connected_ = status == rtcsdk::PEER_CONNECTION_STATUS_CONNECTED;
 		if (connected_) {
-			setMotorAngleReportEnabled(true);
-			queryMotorAngle();
+			send(SetMotorAngleReportingRequest{true});
+			send(QueryMotorAngleRequest{});
 			if (!startStreaming()) {
 				blog(LOG_ERROR, "FalconM: startStreaming failed after peer connection");
 			}
@@ -345,55 +315,48 @@ private:
 	{
 		blog(LOG_INFO, "FalconM: onRTPMessage ssrc=%u data=%p", ssrc, data.get());
 	}
+	void dispatchEvent(const FalconEvent &event)
+	{
+		if (const auto *modes = dynamic_cast<const SupportedModesEvent *>(&event)) {
+			supported_modes_callback callback;
+			{
+				std::lock_guard<std::mutex> lock(supported_modes_mutex_);
+				supported_modes_ = modes->modes();
+				++supported_modes_sequence_;
+				callback = supported_modes_cb_;
+			}
+			if (callback) {
+				callback(modes->modes());
+			}
+		} else if (const auto *capture = dynamic_cast<const CaptureModeResultEvent *>(&event)) {
+			std::lock_guard<std::mutex> lock(capture_mode_mutex_);
+			capture_mode_result_.success = capture->success();
+			++capture_mode_result_.sequence;
+		} else if (const auto *angle = dynamic_cast<const MotorAngleEvent *>(&event)) {
+			std::lock_guard<std::mutex> lock(angle_mutex_);
+			angle_ = angle->angle();
+		} else if (const auto *report = dynamic_cast<const MotorAngleReportEvent *>(&event)) {
+			std::lock_guard<std::mutex> lock(angle_mutex_);
+			angle_ = report->angle();
+		}
+	}
 	void onPeerMessage(rtcsdk::BLNSPClient &client, const rtcsdk::MQTTMessage &m) override
 	{
 		if (!m.payload && m.payloadlen != 0) {
 			blog(LOG_ERROR, "FalconM: invalid signaling payload from '%s'", client.name.c_str());
 			return;
 		}
+
 		const auto *payload = static_cast<const uint8_t *>(m.payload);
-		if (m.topic == "BPA") {
-			falconm_supported_modes modes;
-			if (falconm_parse_supported_modes(payload, m.payloadlen, modes)) {
-				supported_modes_callback callback;
-				{
-					std::lock_guard<std::mutex> lock(supported_modes_mutex_);
-					supported_modes_ = modes;
-					++supported_modes_sequence_;
-					callback = supported_modes_cb_;
-				}
-				if (m.payloadlen >= 2 && (m.payloadlen - 2) % 3 != 0) {
-					blog(LOG_WARNING,
-					     "FalconM: BPA payload has incomplete trailing mode entry, size=%u",
-					     m.payloadlen);
-				}
-				if (callback) {
-					callback(modes);
-				}
+		const auto factory = event_factories_.find(m.topic);
+		if (factory != event_factories_.end()) {
+			auto event = factory->second();
+			if (event->parse(payload, m.payloadlen)) {
+				dispatchEvent(*event);
+			} else {
+				blog(LOG_WARNING, "FalconM: invalid %s payload, size=%u", m.topic.c_str(),
+				     m.payloadlen);
 			}
-		} else if (m.topic == "AVA") {
-			bool success = false;
-			if (falconm_parse_capture_mode_result(payload, m.payloadlen, success)) {
-				std::lock_guard<std::mutex> lock(capture_mode_mutex_);
-				capture_mode_result_.success = success;
-				++capture_mode_result_.sequence;
-			}
-		} else if (m.topic == "BXA" && m.payloadlen >= 10) {
-			falconm_motor_angle angle;
-			angle.result = read_u16_be(payload);
-			angle.horizontal = static_cast<int32_t>(read_u32_be(payload + 2));
-			angle.vertical = static_cast<int32_t>(read_u32_be(payload + 6));
-			std::lock_guard<std::mutex> lock(angle_mutex_);
-			angle_ = angle;
-		} else if (m.topic == "DFA" && m.payloadlen >= 12) {
-			falconm_motor_angle angle;
-			angle.result = read_u16_be(payload);
-			angle.horizontal = static_cast<int32_t>(read_u32_be(payload + 2));
-			angle.horizontal_limit = payload[6];
-			angle.vertical = static_cast<int32_t>(read_u32_be(payload + 7));
-			angle.vertical_limit = payload[11];
-			std::lock_guard<std::mutex> lock(angle_mutex_);
-			angle_ = angle;
 		}
 		if (signaling_cb_) {
 			signaling_cb_(m.topic,
@@ -440,6 +403,7 @@ private:
 	rtcsdk::BLRTCServerSession *session_ = nullptr;
 	std::string device_id_;
 	std::string controller_id_ = "uuid";
+	std::unordered_map<std::string, falcon_event_factory> event_factories_;
 	std::atomic<bool> connected_{false};
 	std::atomic<bool> streaming_{false};
 	mutable std::mutex angle_mutex_;

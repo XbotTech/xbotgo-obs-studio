@@ -49,7 +49,7 @@ static void falconm_stop(falconm_source *d)
 	}
 	d->stopping = true;
 	if (d->stream) {
-		d->stream->setMotorAngleReportEnabled(false);
+		d->stream->send(SetMotorAngleReportingRequest{false});
 		d->stream->stopStreaming();
 		d->stream->disconnect();
 	}
@@ -122,14 +122,14 @@ static void falconm_send_direction(void *data, calldata_t *cd)
 		return;
 	}
 	calldata_set_bool(cd, "success",
-			  d->stream->sendDirection(static_cast<falconm_direction>(direction),
-						   static_cast<falconm_operation>(operation)));
+			  d->stream->send(SendDirectionRequest{static_cast<falconm_direction>(direction),
+							       static_cast<falconm_operation>(operation)}));
 }
 
 static void falconm_query_angle(void *data, calldata_t *cd)
 {
 	auto *d = static_cast<falconm_source *>(data);
-	calldata_set_bool(cd, "success", d->stream && d->stream->queryMotorAngle());
+	calldata_set_bool(cd, "success", d->stream && d->stream->send(QueryMotorAngleRequest{}));
 }
 
 static void falconm_set_angle_reporting(void *data, calldata_t *cd)
@@ -139,7 +139,7 @@ static void falconm_set_angle_reporting(void *data, calldata_t *cd)
 	if (!calldata_get_bool(cd, "enabled", &enabled) || !d->stream) {
 		return;
 	}
-	calldata_set_bool(cd, "success", d->stream->setMotorAngleReportEnabled(enabled));
+	calldata_set_bool(cd, "success", d->stream->send(SetMotorAngleReportingRequest{enabled}));
 }
 
 static void falconm_get_angle(void *data, calldata_t *cd)
@@ -148,7 +148,7 @@ static void falconm_get_angle(void *data, calldata_t *cd)
 	if (!d->stream) {
 		return;
 	}
-	const auto angle = d->stream->motorAngle();
+	const auto angle = d->stream->state().motor_angle;
 	calldata_set_int(cd, "result", angle.result);
 	calldata_set_float(cd, "horizontal", angle.horizontal / 100.0);
 	calldata_set_float(cd, "vertical", angle.vertical / 100.0);
@@ -164,7 +164,7 @@ static void falconm_query_supported_modes_proc(void *data, calldata_t *cd)
 		calldata_set_bool(cd, "success", false);
 		return;
 	}
-	calldata_set_bool(cd, "success", d->stream->querySupportedModes(static_cast<uint8_t>(version)));
+	calldata_set_bool(cd, "success", d->stream->send(QuerySupportedModesRequest{static_cast<uint8_t>(version)}));
 }
 
 static void falconm_get_supported_modes(void *data, calldata_t *cd)
@@ -173,8 +173,9 @@ static void falconm_get_supported_modes(void *data, calldata_t *cd)
 	if (!d->stream) {
 		return;
 	}
-	const auto modes = d->stream->supportedModes();
-	calldata_set_int(cd, "sequence", static_cast<long long>(d->stream->supportedModesSequence()));
+	const auto state = d->stream->state();
+	const auto &modes = state.supported_modes;
+	calldata_set_int(cd, "sequence", static_cast<long long>(state.supported_modes_sequence));
 	calldata_set_int(cd, "current_mode", modes.current_mode);
 	calldata_set_int(cd, "count", static_cast<long long>(modes.modes.size()));
 }
@@ -186,7 +187,7 @@ static void falconm_get_supported_mode(void *data, calldata_t *cd)
 	if (!calldata_get_int(cd, "index", &index) || index < 0 || !d->stream) {
 		return;
 	}
-	const auto modes = d->stream->supportedModes();
+	const auto modes = d->stream->state().supported_modes;
 	if (static_cast<size_t>(index) >= modes.modes.size()) {
 		return;
 	}
@@ -203,7 +204,7 @@ static void falconm_set_capture_mode(void *data, calldata_t *cd)
 		calldata_set_bool(cd, "success", false);
 		return;
 	}
-	calldata_set_bool(cd, "success", d->stream->setCaptureMode(static_cast<uint16_t>(mode)));
+	calldata_set_bool(cd, "success", d->stream->send(SetCaptureModeRequest{static_cast<uint16_t>(mode)}));
 }
 
 static void falconm_get_capture_mode_result(void *data, calldata_t *cd)
@@ -212,7 +213,7 @@ static void falconm_get_capture_mode_result(void *data, calldata_t *cd)
 	if (!d->stream) {
 		return;
 	}
-	const auto result = d->stream->captureModeResult();
+	const auto result = d->stream->state().capture_mode_result;
 	calldata_set_int(cd, "sequence", static_cast<long long>(result.sequence));
 	calldata_set_bool(cd, "success", result.success);
 }
@@ -242,12 +243,12 @@ void falconm_register_proc_handler(falconm_source *d)
 
 bool falconm_query_supported_modes(falconm_source *source, uint8_t max_version)
 {
-	return source && source->stream && source->stream->querySupportedModes(max_version);
+	return source && source->stream && source->stream->send(QuerySupportedModesRequest{max_version});
 }
 
 falconm_supported_modes falconm_get_supported_modes(const falconm_source *source)
 {
-	return source && source->stream ? source->stream->supportedModes() : falconm_supported_modes{};
+	return source && source->stream ? source->stream->state().supported_modes : falconm_supported_modes{};
 }
 
 #ifdef XBOTGO_DEVICE_DISCOVERY
