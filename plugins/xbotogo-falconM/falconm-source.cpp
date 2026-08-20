@@ -8,6 +8,7 @@
 #include <util/base.h>
 
 #include <limits>
+#include <cstring>
 #include <callback/calldata.h>
 
 namespace xbotgo {
@@ -230,6 +231,55 @@ static void falconm_query_default_capture_parameters(void *data, calldata_t *cd)
 	calldata_set_bool(cd, "success", d->stream && d->stream->send(QueryDefaultCaptureParametersRequest{}));
 }
 
+static void falconm_set_capture_parameters(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	long long resolution_id = -1, angle_range = -1, accel_speed = -1, countdown = -1, flicker = -1;
+	bool watermark = false, mute = false, auto_zoom = false, auto_tracking = false;
+	const char *resolution = nullptr;
+	if (!d->stream || !calldata_get_bool(cd, "watermark", &watermark) || !calldata_get_bool(cd, "mute", &mute) ||
+	    !calldata_get_int(cd, "resolution_id", &resolution_id) ||
+	    !calldata_get_string(cd, "resolution", &resolution) || !resolution ||
+	    !calldata_get_bool(cd, "auto_zoom", &auto_zoom) ||
+	    !calldata_get_bool(cd, "auto_tracking", &auto_tracking) ||
+	    !calldata_get_int(cd, "angle_range", &angle_range) || !calldata_get_int(cd, "accel_speed", &accel_speed) ||
+	    !calldata_get_int(cd, "countdown", &countdown) || !calldata_get_int(cd, "flicker", &flicker) ||
+	    resolution_id < 0 || resolution_id > UINT8_MAX || angle_range < 0 || angle_range > UINT16_MAX ||
+	    accel_speed < 0 || accel_speed > UINT16_MAX || countdown < 0 || countdown > UINT16_MAX || flicker < 0 ||
+	    flicker > 2 || std::strlen(resolution) > 63) {
+		calldata_set_bool(cd, "success", false);
+		return;
+	}
+
+	falconm_capture_parameters parameters = d->stream->state().capture_parameters;
+	parameters.watermark = watermark;
+	parameters.mute = mute;
+	parameters.resolution_id = static_cast<uint8_t>(resolution_id);
+	parameters.resolution = resolution;
+	parameters.auto_zoom = auto_zoom;
+	parameters.auto_tracking = auto_tracking;
+	parameters.angle_range = static_cast<uint16_t>(angle_range);
+	parameters.accel_speed = static_cast<uint16_t>(accel_speed);
+	parameters.has_countdown_time = true;
+	parameters.countdown_time = static_cast<uint16_t>(countdown);
+	parameters.has_flicker_set = true;
+	parameters.flicker_set = static_cast<uint8_t>(flicker);
+	calldata_set_bool(cd, "success", d->stream->send(SetCaptureParametersRequest{std::move(parameters)}));
+}
+
+static void falconm_set_capture_auto_tracking(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	bool auto_tracking = false;
+	if (!d->stream || !calldata_get_bool(cd, "auto_tracking", &auto_tracking)) {
+		calldata_set_bool(cd, "success", false);
+		return;
+	}
+	falconm_capture_parameters parameters = d->stream->state().capture_parameters;
+	parameters.auto_tracking = auto_tracking;
+	calldata_set_bool(cd, "success", d->stream->send(SetCaptureParametersRequest{std::move(parameters)}));
+}
+
 static void falconm_get_capture_parameters(void *data, calldata_t *cd)
 {
 	auto *d = static_cast<falconm_source *>(data);
@@ -336,6 +386,12 @@ void falconm_register_proc_handler(falconm_source *d)
 	proc_handler_add(ph, "void get_capture_mode_result(out int sequence, out bool success)",
 			 falconm_get_capture_mode_result, d);
 	proc_handler_add(ph, "void query_capture_parameters(out bool success)", falconm_query_capture_parameters, d);
+	proc_handler_add(
+		ph,
+		"void set_capture_parameters(bool watermark, bool mute, int resolution_id, string resolution, bool auto_zoom, bool auto_tracking, int angle_range, int accel_speed, int countdown, int flicker, out bool success)",
+		falconm_set_capture_parameters, d);
+	proc_handler_add(ph, "void set_capture_auto_tracking(bool auto_tracking, out bool success)",
+			 falconm_set_capture_auto_tracking, d);
 	proc_handler_add(
 		ph,
 		"void get_capture_parameters(out int sequence, out int mode, out bool watermark, out bool mute, out int resolution_id, out string resolution, out bool auto_zoom, out bool auto_tracking, out int angle_range, out int accel_speed, out bool has_countdown, out int countdown, out bool has_flicker, out int flicker, out int supported_resolution_count)",

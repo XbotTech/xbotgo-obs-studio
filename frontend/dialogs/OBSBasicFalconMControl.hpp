@@ -4,6 +4,7 @@
 #include <obs.h>
 
 class QComboBox;
+class QCheckBox;
 class QLabel;
 class QPushButton;
 class QTimer;
@@ -17,21 +18,28 @@ class OBSBasicFalconMControl : public QDialog {
 	QComboBox *modeSelector = nullptr;
 	QPushButton *modeRefresh = nullptr;
 	QPushButton *parametersRefresh = nullptr;
+	QPushButton *parametersApply = nullptr;
 	QLabel *parametersStatus = nullptr;
-	QLabel *parametersText = nullptr;
-	QPushButton *defaultParametersRefresh = nullptr;
-	QLabel *defaultParametersStatus = nullptr;
-	QLabel *defaultParametersText = nullptr;
+	QLabel *parametersMode = nullptr;
+	QLabel *parametersResolution = nullptr;
+	QLabel *parametersResolutionId = nullptr;
+	QLabel *parametersWatermark = nullptr;
+	QLabel *parametersMute = nullptr;
+	QLabel *parametersAutoZoom = nullptr;
+	QCheckBox *parametersAutoTracking = nullptr;
+	QLabel *parametersAngleRange = nullptr;
+	QLabel *parametersAccelSpeed = nullptr;
+	QLabel *parametersCountdown = nullptr;
+	QLabel *parametersFlicker = nullptr;
+	QLabel *parametersSupportedResolutions = nullptr;
 	QTimer *poller = nullptr;
 	QTimer *modeTimeout = nullptr;
-	QTimer *defaultParametersTimeout = nullptr;
+	QTimer *parametersTimeout = nullptr;
 	uint64_t modeQuerySequence = 0;
 	uint64_t modeResultSequence = 0;
 	uint64_t displayedModesSequence = 0;
 	uint64_t parametersQuerySequence = 0;
 	uint64_t displayedParametersSequence = 0;
-	uint64_t defaultParametersQuerySequence = 0;
-	uint64_t displayedDefaultParametersSequence = 0;
 	int confirmedMode = -1;
 	bool waitingForModes = false;
 	bool waitingForModeResult = false;
@@ -45,10 +53,9 @@ private:
 	void Send(int direction, int operation);
 	void QueryModes();
 	void QueryCaptureParameters();
-	void QueryDefaultCaptureParameters();
+	void ApplyCaptureParameters();
 	void UpdateModes();
 	void UpdateCaptureParameters();
-	void UpdateDefaultCaptureParameters();
 	void SelectMode(int index);
 	void HandleModeResult();
 	void RestoreConfirmedMode(const QString &status);

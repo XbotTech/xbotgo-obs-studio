@@ -109,6 +109,39 @@ static void test_request_encoding()
 	assert(anr.topic() == "ANR" && anr.encodePayload() == std::vector<uint8_t>({0}));
 	const auto axr = QueryDefaultCaptureParametersRequest{};
 	assert(axr.topic() == "AXR" && axr.encodePayload() == std::vector<uint8_t>({0}));
+
+	falconm_capture_parameters settings;
+	settings.watermark = true;
+	settings.resolution_id = 4;
+	settings.resolution = "1080p/30fps";
+	settings.auto_zoom = true;
+	settings.angle_range = 300;
+	settings.accel_speed = 100;
+	settings.has_countdown_time = true;
+	settings.countdown_time = 5;
+	settings.has_flicker_set = true;
+	settings.flicker_set = 2;
+	settings.has_supported_resolutions = true;
+	settings.supported_resolutions = {{4, "1080p/30fps"}};
+	const auto aor = SetCaptureParametersRequest{settings};
+	const auto aor_payload = aor.encodePayload();
+	assert(aor.topic() == "AOR");
+	assert(aor_payload.size() == 145);
+	assert(aor_payload[0] == 0xff && aor_payload[1] == 0xff);
+	assert(aor_payload[2] == 1 && aor_payload[3] == 0);
+	assert(aor_payload[4] == 4 && aor_payload[5] == '1');
+	assert(aor_payload[69] == 1 && aor_payload[70] == 0);
+	assert(aor_payload[71] == 0x01 && aor_payload[72] == 0x2c);
+	assert(aor_payload[73] == 0x00 && aor_payload[74] == 0x64);
+	assert(aor_payload[75] == 0x00 && aor_payload[76] == 0x05);
+	assert(aor_payload[77] == 2 && aor_payload[78] == 1);
+	assert(aor_payload[79] == 4 && aor_payload[80] == '1');
+
+	settings.has_supported_resolutions = false;
+	settings.supported_resolutions.clear();
+	const auto aor_without_table = SetCaptureParametersRequest{settings}.encodePayload();
+	assert(aor_without_table.size() == 80);
+	assert(aor_without_table[78] == 0);
 }
 
 static void test_ana_parses_capture_parameters()
@@ -116,7 +149,7 @@ static void test_ana_parses_capture_parameters()
 	std::vector<uint8_t> payload = {
 		0x00, 0x07, 0x01, 0x00, 0x03,
 	};
-	payload.resize(76, 0);
+	payload.resize(75, 0);
 	payload[5] = '1';
 	payload[6] = '0';
 	payload[7] = '8';
@@ -153,7 +186,7 @@ static void test_ana_parses_capture_parameters()
 	assert(parameters.supported_resolutions[0].value == "720p");
 
 	// AXA devices may return only part of the optional tail.
-	const std::vector<uint8_t> partial_payload(payload.begin(), payload.begin() + 77);
+	const std::vector<uint8_t> partial_payload(payload.begin(), payload.begin() + 76);
 	CaptureParametersEvent partial_event;
 	assert(partial_event.parse(partial_payload.data(), partial_payload.size()));
 	assert(!partial_event.parameters().has_countdown_time);
@@ -189,7 +222,7 @@ static void test_event_classes_parse_responses()
 	assert(capture.parse(ava.data(), ava.size()));
 	assert(capture.success());
 
-	std::vector<uint8_t> axa(76, 0);
+	std::vector<uint8_t> axa(75, 0);
 	axa[0] = 0x00;
 	axa[1] = 0x09;
 	axa[4] = 0x02;
@@ -203,7 +236,7 @@ static void test_event_classes_parse_responses()
 	axa[74] = 0x32;
 	axa.insert(axa.end(), {0x00, 0x05, 0x01, 0x01});
 	axa.resize(axa.size() + 65, 0);
-	axa[80] = 1;
+	axa[79] = 1;
 	DefaultCaptureParametersEvent defaults;
 	assert(defaults.topic() == "AXA");
 	assert(defaults.parse(axa.data(), axa.size()));

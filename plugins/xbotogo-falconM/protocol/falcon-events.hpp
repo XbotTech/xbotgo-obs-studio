@@ -28,7 +28,7 @@ inline std::string read_fixed_string(const uint8_t *p, size_t size)
 
 inline bool parse_capture_parameters(const uint8_t *payload, size_t size, falconm_capture_parameters &parameters)
 {
-	constexpr size_t kBaseSize = 76;
+	constexpr size_t kBaseSize = 75;
 	constexpr size_t kResolutionStringSize = 64;
 	constexpr size_t kResolutionEntrySize = 65;
 	constexpr uint8_t kMaxResolutionEntries = 20;
