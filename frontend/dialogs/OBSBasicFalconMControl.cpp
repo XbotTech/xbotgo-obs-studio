@@ -204,6 +204,8 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 							    : "Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
 
 	angles = new QLabel(this);
+	buzzerLongButton = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.LongBeep"), this);
+	buzzerStatus = new QLabel(this);
 	auto *grid = new QGridLayout;
 	const auto addButton = [this, grid](const QString &label, int row, int col, int direction) {
 		auto *button = new QPushButton(label, this);
@@ -257,11 +259,16 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	layout->addLayout(parametersLayout);
 	layout->addWidget(angles);
 	layout->addLayout(grid);
+	auto *buzzerLayout = new QHBoxLayout;
+	buzzerLayout->addWidget(buzzerLongButton);
+	buzzerLayout->addWidget(buzzerStatus, 1);
+	layout->addLayout(buzzerLayout);
 	connect(modeRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryModes);
 	connect(parametersRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryCaptureParameters);
 	connect(parametersApply, &QPushButton::clicked, this, &OBSBasicFalconMControl::ApplyCaptureParameters);
 	connect(modeSelector, qOverload<int>(&QComboBox::currentIndexChanged), this,
 		&OBSBasicFalconMControl::SelectMode);
+	connect(buzzerLongButton, &QPushButton::clicked, this, [this] { SendBuzzerMode(3); });
 
 	poller = new QTimer(this);
 	connect(poller, &QTimer::timeout, this, &OBSBasicFalconMControl::Refresh);
@@ -300,6 +307,24 @@ void OBSBasicFalconMControl::Send(int direction, int operation)
 	calldata_set_int(&cd, "operation", operation);
 	proc_handler_call(obs_source_get_proc_handler(source), "send_direction", &cd);
 	calldata_free(&cd);
+}
+
+void OBSBasicFalconMControl::SendBuzzerMode(int mode)
+{
+	if (!source || !obs_source_active(source)) {
+		buzzerStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.BuzzerSendFailed"));
+		return;
+	}
+
+	calldata_t cd;
+	calldata_init(&cd);
+	calldata_set_int(&cd, "mode", mode);
+	proc_handler_call(obs_source_get_proc_handler(source), "set_buzzer_mode", &cd);
+	bool success = false;
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	buzzerStatus->setText(QTStr(success ? "Basic.MainMenu.XBotGo.DeviceManagement.BuzzerSent"
+					     : "Basic.MainMenu.XBotGo.DeviceManagement.BuzzerSendFailed"));
 }
 
 void OBSBasicFalconMControl::QueryModes()

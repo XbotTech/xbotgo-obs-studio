@@ -143,6 +143,17 @@ static void falconm_set_angle_reporting(void *data, calldata_t *cd)
 	calldata_set_bool(cd, "success", d->stream->send(SetMotorAngleReportingRequest{enabled}));
 }
 
+static void falconm_set_buzzer_mode(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	long long mode = -1;
+	if (!calldata_get_int(cd, "mode", &mode) || mode < 0 || mode > 4 || !d->stream) {
+		calldata_set_bool(cd, "success", false);
+		return;
+	}
+	calldata_set_bool(cd, "success", d->stream->send(SetBuzzerModeRequest{static_cast<uint8_t>(mode)}));
+}
+
 static void falconm_get_angle(void *data, calldata_t *cd)
 {
 	auto *d = static_cast<falconm_source *>(data);
@@ -372,6 +383,7 @@ void falconm_register_proc_handler(falconm_source *d)
 	proc_handler_add(ph, "void query_motor_angle(out bool success)", falconm_query_angle, d);
 	proc_handler_add(ph, "void set_motor_angle_reporting(bool enabled, out bool success)",
 			 falconm_set_angle_reporting, d);
+	proc_handler_add(ph, "void set_buzzer_mode(int mode, out bool success)", falconm_set_buzzer_mode, d);
 	proc_handler_add(
 		ph,
 		"void get_motor_angle(out int result, out float horizontal, out float vertical, out int horizontal_limit, out int vertical_limit)",

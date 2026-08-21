@@ -170,6 +170,9 @@ public:
 		m.topic = std::string(request.topic());
 		m.payload = const_cast<uint8_t *>(payload.data());
 		m.payloadlen = (uint32_t)payload.size();
+		const std::string payload_hex = payload_to_hex(payload.data(), payload.size());
+		blog(LOG_INFO, "FalconM: sendPeerMessage device='%s' topic='%s' payloadlen=%u payload=%s",
+		     device_id_.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
 		return session_->sendPeerMessage(device_id_, m) == 0;
 	}
 	falconm_device_state state() const override

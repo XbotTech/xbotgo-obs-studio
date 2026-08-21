@@ -68,6 +68,26 @@ Qt 控制窗口
 
 设备连接成功后自动开启上报并立即查询一次角度；source 停止或断开前关闭上报。
 
+### 蜂鸣控制：AIR
+
+通过 FalconM source 的 `set_buzzer_mode` proc handler 发送一个字节：
+
+```text
+void set_buzzer_mode(int mode, out bool success)
+```
+
+`mode` 取值为：
+
+```text
+0 stop
+1 beep for 200 ms
+2 beep twice, 500 ms each with a 500 ms interval
+3 beep for 1000 ms
+4 repeat two 500 ms beeps with a 1000 ms interval between pairs
+```
+
+对应 MQTT 消息为 topic `AIR`，payload 为单字节 `mode`。循环行为由设备固件负责，OBS 只发送一次指令；发送 `mode=0` 可停止蜂鸣。
+
 ### 角度数据：BXA / DFA
 
 `BXA` 和 `DFA` payload 使用大端序解析。
@@ -130,6 +150,11 @@ proc_handler_t *ph = obs_source_get_proc_handler(source);
 proc_handler_add(ph,
                  "void send_direction(int direction, int operation, out bool success)",
                  falconm_send_direction,
+                 source_data);
+
+proc_handler_add(ph,
+                 "void set_buzzer_mode(int mode, out bool success)",
+                 falconm_set_buzzer_mode,
                  source_data);
 ```
 

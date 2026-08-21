@@ -14,6 +14,8 @@ class OBSBasicFalconMControl : public QDialog {
 	obs_source_t *source = nullptr;
 	QLabel *connection = nullptr;
 	QLabel *angles = nullptr;
+	QPushButton *buzzerLongButton = nullptr;
+	QLabel *buzzerStatus = nullptr;
 	QLabel *modeStatus = nullptr;
 	QComboBox *modeSelector = nullptr;
 	QPushButton *modeRefresh = nullptr;
@@ -51,6 +53,7 @@ public:
 
 private:
 	void Send(int direction, int operation);
+	void SendBuzzerMode(int mode);
 	void QueryModes();
 	void QueryCaptureParameters();
 	void ApplyCaptureParameters();

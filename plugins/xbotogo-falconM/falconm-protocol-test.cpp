@@ -105,6 +105,10 @@ static void test_request_encoding()
 	assert(bxr.topic() == "BXR" && bxr.encodePayload() == std::vector<uint8_t>({0}));
 	const auto dgr = SetMotorAngleReportingRequest{true};
 	assert(dgr.topic() == "DGR" && dgr.encodePayload() == std::vector<uint8_t>({1}));
+	const auto air_short = SetBuzzerModeRequest{1};
+	assert(air_short.topic() == "AIR" && air_short.encodePayload() == std::vector<uint8_t>({1}));
+	const auto air_loop = SetBuzzerModeRequest{4};
+	assert(air_loop.topic() == "AIR" && air_loop.encodePayload() == std::vector<uint8_t>({4}));
 	const auto anr = QueryCaptureParametersRequest{};
 	assert(anr.topic() == "ANR" && anr.encodePayload() == std::vector<uint8_t>({0}));
 	const auto axr = QueryDefaultCaptureParametersRequest{};

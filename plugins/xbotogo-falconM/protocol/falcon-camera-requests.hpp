@@ -38,4 +38,14 @@ private:
 	bool enabled_;
 };
 
+class SetBuzzerModeRequest final : public FalconRequest {
+public:
+	explicit SetBuzzerModeRequest(uint8_t mode) : mode_(mode) {}
+	std::string_view topic() const override { return "AIR"; }
+	std::vector<uint8_t> encodePayload() const override { return {mode_}; }
+
+private:
+	uint8_t mode_;
+};
+
 } // namespace xbotgo
