@@ -455,6 +455,11 @@ static bool falconm_search_device(obs_properties_t *, obs_property_t *, void *da
 	obs_data_set_string(settings, "broker_address", device->ip.toUtf8().constData());
 	obs_data_set_string(settings, "device_id", device->id.toUtf8().constData());
 	obs_data_set_int(settings, "broker_port", device->mqttPort);
+	obs_data_set_string(settings, "device_version",
+			   device->version.isEmpty() ? obs_module_text("Unknown") : device->version.toUtf8().constData());
+	obs_data_set_string(settings, "device_serial_number",
+			   device->serialNumber.isEmpty() ? obs_module_text("Unknown")
+								 : device->serialNumber.toUtf8().constData());
 	obs_source_update(d->source, settings);
 	obs_data_release(settings);
 	return true;
@@ -473,6 +478,8 @@ static obs_properties_t *falconm_properties(void *data)
 	obs_properties_add_text(p, "device_id", obs_module_text("DeviceId"), OBS_TEXT_DEFAULT);
 	obs_properties_add_int(p, "broker_port", obs_module_text("MqttPort"), 1, std::numeric_limits<uint16_t>::max(),
 			       1);
+	obs_properties_add_text(p, "device_version", obs_module_text("FirmwareVersion"), OBS_TEXT_INFO);
+	obs_properties_add_text(p, "device_serial_number", obs_module_text("SerialNumber"), OBS_TEXT_INFO);
 	return p;
 }
 static void falconm_defaults(obs_data_t *s)
@@ -480,6 +487,8 @@ static void falconm_defaults(obs_data_t *s)
 	obs_data_set_default_string(s, "broker_address", "");
 	obs_data_set_default_string(s, "device_id", "");
 	obs_data_set_default_int(s, "broker_port", DEFAULT_MQTT_PORT);
+	obs_data_set_default_string(s, "device_version", "");
+	obs_data_set_default_string(s, "device_serial_number", "");
 }
 
 obs_source_info falconm_source_info = {.id = "xbotogo_falconm",

@@ -2,6 +2,7 @@
 
 #include <QAbstractSocket>
 #include <QHash>
+#include <QRegularExpression>
 #include <QStringList>
 
 namespace XBotGo {
@@ -43,8 +44,7 @@ std::optional<Device> parseSsdpDevice(const QByteArray &payload, const QHostAddr
 	const QString id = headers.value(QStringLiteral("x-device-id"));
 	const QString ipText = headers.value(QStringLiteral("x-device-ip"));
 	const QString mqttPortText = headers.value(QStringLiteral("x-mqtt-port"));
-	const QString protocolVersionText = headers.value(QStringLiteral("x-protocol-version"));
-	if (id.isEmpty() || ipText.isEmpty() || mqttPortText.isEmpty() || protocolVersionText.isEmpty()) {
+	if (id.isEmpty() || ipText.isEmpty() || mqttPortText.isEmpty()) {
 		return std::nullopt;
 	}
 
@@ -63,17 +63,37 @@ std::optional<Device> parseSsdpDevice(const QByteArray &payload, const QHostAddr
 		return std::nullopt;
 	}
 
-	bool versionValid = false;
-	const uint protocolVersion = protocolVersionText.toUInt(&versionValid);
-	if (!versionValid || protocolVersion > 65535) {
-		return std::nullopt;
-	}
-
 	Device device;
 	device.id = id;
+	device.serialNumber = headers.value(QStringLiteral("x-device-sn"));
 	device.ip = deviceAddress.toString();
 	device.mqttPort = static_cast<quint16>(mqttPort);
-	device.protocolVersion = static_cast<quint16>(protocolVersion);
+
+	const QString maskText = headers.value(QStringLiteral("x-device-mask"));
+	QHostAddress maskAddress;
+	if (maskAddress.setAddress(maskText) && maskAddress.protocol() == QAbstractSocket::IPv4Protocol) {
+		device.mask = maskAddress.toString();
+	}
+
+	const QString macText = headers.value(QStringLiteral("x-device-mac"));
+	static const QRegularExpression macPattern(
+		QStringLiteral("^[0-9a-fA-F]{2}(:[0-9a-fA-F]{2}){5}$"));
+	if (macPattern.match(macText).hasMatch()) {
+		device.mac = macText.toUpper();
+	}
+
+	device.version = headers.value(QStringLiteral("x-device-version"));
+
+	const QString roleText = headers.value(QStringLiteral("x-device-role")).toLower();
+	if (roleText == QStringLiteral("master") || roleText == QStringLiteral("slave")) {
+		device.role = roleText;
+	}
+
+	const QString timeText = headers.value(QStringLiteral("x-device-time"));
+	if (timeText == QStringLiteral("0") || timeText == QStringLiteral("1")) {
+		device.timeSynchronized = timeText == QStringLiteral("1");
+	}
+
 	return device;
 }
 
