@@ -23,6 +23,7 @@
 #include <dialogs/LogUploadDialog.hpp>
 #include <dialogs/OBSAbout.hpp>
 #include <dialogs/OBSBasicAdvAudio.hpp>
+#include <dialogs/OBSBasicFalconMDevices.hpp>
 #include <dialogs/OBSBasicFilters.hpp>
 #include <dialogs/OBSBasicInteraction.hpp>
 #include <dialogs/OBSBasicProperties.hpp>
@@ -44,7 +45,6 @@
 #include <utility/WhatsNewInfoThread.hpp>
 #endif
 #include <wizards/AutoConfig.hpp>
-#include <XBotGoDeviceSearchDialog.hpp>
 #include <xbotgo/dialogs/XBotGoLiveStreamConfigDialog.hpp>
 #include <xbotgo/services/XBotGoLiveStreamProvider.hpp>
 
@@ -681,10 +681,13 @@ void OBSBasic::on_idianPlayground_triggered()
 #endif
 }
 
-void OBSBasic::on_actionXBotGoSearchDevices_triggered()
+void OBSBasic::on_actionXBotGoDeviceManagement_triggered()
 {
-	XBotGo::DeviceSearchDialog dialog(this);
-	dialog.exec();
+	auto *dialog = new OBSBasicFalconMDevices(this);
+	dialog->setAttribute(Qt::WA_DeleteOnClose);
+	dialog->show();
+	dialog->raise();
+	dialog->activateWindow();
 }
 
 void OBSBasic::on_actionXBotGoStartStreaming_triggered()

@@ -955,7 +955,7 @@
     <property name="title">
      <string>Basic.MainMenu.XBotGo</string>
     </property>
-    <addaction name="actionXBotGoSearchDevices"/>
+    <addaction name="actionXBotGoDeviceManagement"/>
     <addaction name="actionXBotGoStartStreaming"/>
    </widget>
    <widget class="QMenu" name="menuDocks">
@@ -2055,9 +2055,9 @@
     <string>Basic.OpenPluginManager</string>
    </property>
   </action>
-  <action name="actionXBotGoSearchDevices">
+  <action name="actionXBotGoDeviceManagement">
    <property name="text">
-    <string>Basic.MainMenu.XBotGo.SearchDevices</string>
+    <string>Basic.MainMenu.XBotGo.DeviceManagement</string>
    </property>
   </action>
   <action name="actionXBotGoStartStreaming">
