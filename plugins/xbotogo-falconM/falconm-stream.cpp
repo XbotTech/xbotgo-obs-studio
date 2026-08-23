@@ -10,13 +10,14 @@
 using namespace blink::media;
 
 namespace xbotgo {
-constexpr uint32_t kDefaultVideoSsrc = 6666;
-constexpr uint32_t kDefaultAudioSsrc = 7777;
-constexpr uint32_t kDefaultDataSsrc = 8888;
+constexpr uint32_t kDefaultVideoSsrc = 600000;
+constexpr uint32_t kDefaultAudioSsrc = 700000;
+constexpr uint32_t kDefaultDataSsrc = 800000;
 class FalconMStreamSdk final : public FalconMStream, private rtcsdk::BLRTCServerSessionListener {
 public:
-	FalconMStreamSdk()
+	FalconMStreamSdk() : instance_id_(++uniqueID)
 	{
+		blog(LOG_INFO, "FalconM: FalconMStreamSdk constructor this=%p uniqueID=%d", (void *)this, instance_id_);
 		const int init_result = blink::utils::GlobalInit::getInstance().init(blink::utils::GlobalConfig());
 		if (init_result != 0) {
 			blog(LOG_ERROR, "FalconM: Media SDK GlobalInit failed, result=%d", init_result);
@@ -30,12 +31,16 @@ public:
 	}
 	~FalconMStreamSdk() override
 	{
+		blog(LOG_INFO, "FalconM: FalconMStreamSdk destructor this=%p uniqueID=%d", (void *)this, instance_id_);
 		disconnect();
 		delete session_;
 	}
 	bool connect(const std::string &device_id, const std::string &broker_address,
 			    uint16_t broker_port) override
 	{
+		blog(LOG_INFO, "FalconM: connect this=%p uniqueID=%d controller_id='%s' device_id='%s' broker_address='%s' "
+			      "broker_port=%u",
+		     (void *)this, instance_id_, controller_id_.c_str(), device_id.c_str(), broker_address.c_str(), broker_port);
 		if (!session_ || broker_address.empty() || device_id.empty()) {
 			blog(LOG_ERROR, "FalconM: invalid session or connection settings");
 			return false;
@@ -46,10 +51,9 @@ public:
 			return false;
 		}
 		blink::signaling::ConnectClientConfig c;
+		controller_id_ = "uuid" + std::to_string(instance_id_);
 		c.controlerId = controller_id_;
 		c.deviceId = device_id_;
-		blog(LOG_INFO, "FalconM: connect device_id='%s', broker_address='%s', broker_port=%u",
-		     device_id.c_str(), broker_address.c_str(), broker_port);
 		c.ipv4List.push_back(broker_address);
 		c.mqttBrokerPort = broker_port;
 		if (session_->connectPeerSession(c) != 0) {
@@ -66,9 +70,13 @@ public:
 			return connected_ && streaming_;
 		}
 		rtcsdk::PullStreamParams p;
-		p.srtPushCfg.videoSsrc = video_ssrc;
-		p.srtPushCfg.audioSsrc = audio_ssrc;
-		p.srtPushCfg.dataSsrc = dataSsrc;
+		p.srtPushCfg.videoSsrc = video_ssrc + instance_id_;
+		p.srtPushCfg.audioSsrc = audio_ssrc + instance_id_;
+		p.srtPushCfg.dataSsrc = dataSsrc + instance_id_;
+		blog(LOG_INFO, "FalconM: startStreaming this=%p uniqueID=%d controller_id='%s' videoSsrc=%u audioSsrc=%u "
+		              "dataSsrc=%u",
+		     (void *)this, instance_id_, controller_id_.c_str(), p.srtPushCfg.videoSsrc, p.srtPushCfg.audioSsrc,
+		     p.srtPushCfg.dataSsrc);
 		if (session_->startPullStream(device_id_, p) != 0) {
 			blog(LOG_ERROR, "FalconM: startPullStream failed for device '%s'", device_id_.c_str());
 			return false;
@@ -148,7 +156,8 @@ private:
 	}
 	void onEncodedFrame(uint32_t ssrc, std::shared_ptr<MediaData> data) override
 	{
-		blog(LOG_INFO, "FalconM: onEncodedFrame ssrc=%u data=%p", ssrc, data.get());
+		UNUSED_PARAMETER(ssrc);
+		UNUSED_PARAMETER(data);
 	}
 	void onDecodedFrame(uint32_t ssrc, std::shared_ptr<MediaData> d) override
 	{
@@ -156,7 +165,6 @@ private:
 			blog(LOG_ERROR, "FalconM: onDecodedFrame received null data, ssrc=%u", ssrc);
 			return;
 		}
-		blog(LOG_INFO, "FalconM: onDecodedFrame ssrc=%u format=%d type=%d", ssrc, d->format, d->type);
 		if (d->format == MEDIA_DATA_FORMAT_IMAGE_BUFFER) {
 			if (!d->bufferObj) {
 				blog(LOG_ERROR, "FalconM: IMAGE_BUFFER decoded frame has null bufferObj, ssrc=%u", ssrc);
@@ -269,7 +277,8 @@ private:
 	}
 	void onRTPMessage(uint32_t ssrc, std::shared_ptr<MediaData> data) override
 	{
-		blog(LOG_INFO, "FalconM: onRTPMessage ssrc=%u data=%p", ssrc, data.get());
+		UNUSED_PARAMETER(ssrc);
+		UNUSED_PARAMETER(data);
 	}
 	void onPeerMessage(rtcsdk::BLNSPClient &client, const rtcsdk::MQTTMessage &m) override
 	{
@@ -317,6 +326,8 @@ private:
 	}
 
 	rtcsdk::BLRTCServerSession *session_ = nullptr;
+	static int uniqueID;
+	const int instance_id_;
 	std::string device_id_;
 	std::string controller_id_ = "uuid";
 	std::atomic<bool> connected_{false};
@@ -325,6 +336,8 @@ private:
 	audio_callback audio_cb_;
 	signaling_callback signaling_cb_;
 };
+
+int FalconMStreamSdk::uniqueID = 0;
 
 std::unique_ptr<FalconMStream> falconm_stream_create()
 {
