@@ -19,4 +19,8 @@ struct falconm_source {
 	uint32_t audio_ssrc = 0;
 };
 
+void falconm_register_proc_handler(falconm_source *source);
+bool falconm_query_supported_modes(falconm_source *source, uint8_t max_version);
+falconm_supported_modes falconm_get_supported_modes(const falconm_source *source);
+
 } // namespace xbotgo

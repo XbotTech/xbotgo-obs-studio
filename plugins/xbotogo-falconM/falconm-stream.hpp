@@ -1,10 +1,13 @@
 #pragma once
 
+#include "falconm-protocol.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
+#include <vector>
 #include <obs.h>
 
 extern "C" {
@@ -27,23 +30,41 @@ struct falconm_compressed_packet {
 	falconm_codec codec = falconm_codec::h264;
 };
 
+struct falconm_capture_mode_result {
+	uint64_t sequence = 0;
+	bool success = false;
+};
+
+struct falconm_device_state {
+	falconm_supported_modes supported_modes;
+	uint64_t supported_modes_sequence = 0;
+	falconm_capture_mode_result capture_mode_result;
+	falconm_capture_parameters capture_parameters;
+	uint64_t capture_parameters_sequence = 0;
+	falconm_capture_parameters default_capture_parameters;
+	uint64_t default_capture_parameters_sequence = 0;
+	falconm_motor_angle motor_angle;
+};
+
 class FalconMStream {
 public:
 	using decoded_callback = std::function<void(const obs_source_frame &)>;
 	using audio_callback = std::function<void(const obs_source_audio &)>;
 	using signaling_callback = std::function<void(const std::string &, const std::vector<uint8_t> &)>;
+	using supported_modes_callback = std::function<void(const falconm_supported_modes &)>;
 
 	virtual ~FalconMStream() = default;
-	virtual bool connect(const std::string &device_id, const std::string &broker_address,
-			    uint16_t broker_port) = 0;
-	virtual bool startStreaming(const uint32_t video_ssrc , const uint32_t audio_ssrc, const uint32_t dataSsrc) = 0;
+	virtual bool connect(const std::string &device_id, const std::string &broker_address, uint16_t broker_port) = 0;
+	virtual bool startStreaming(const uint32_t video_ssrc, const uint32_t audio_ssrc, const uint32_t dataSsrc) = 0;
 	virtual bool stopStreaming() = 0;
 	virtual bool isStreaming() const = 0;
 	virtual void disconnect() = 0;
 	virtual void setDecodedFrameCallback(decoded_callback callback) = 0;
 	virtual void setAudioCallback(audio_callback callback) = 0;
 	virtual void setSignalingCallback(signaling_callback callback) = 0;
-	virtual bool sendSignalingMessage(const std::string &topic, const uint8_t *data, size_t size) = 0;
+	virtual void setSupportedModesCallback(supported_modes_callback callback) = 0;
+	virtual bool send(const FalconRequest &request) = 0;
+	virtual falconm_device_state state() const = 0;
 };
 
 std::unique_ptr<FalconMStream> falconm_stream_create();

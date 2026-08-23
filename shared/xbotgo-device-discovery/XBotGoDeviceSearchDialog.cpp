@@ -25,9 +25,10 @@ DeviceSearchDialog::DeviceSearchDialog(QWidget *parent, Mode mode_)
 	  groupAddress4(QStringLiteral(SSDP_QUERY_IP))
 {
 	deviceTable = new QTableView(this);
-	deviceModel = new QStandardItemModel(0, 4, this);
+	deviceModel = new QStandardItemModel(0, 9, this);
 	deviceModel->setHorizontalHeaderLabels(
-		{tr("Device ID"), tr("IP Address"), tr("MQTT Port"), tr("Protocol Version")});
+		{tr("Device ID"), tr("Serial Number"), tr("IP Address"), tr("Subnet Mask"), tr("MAC Address"),
+		 tr("Device Version"), tr("MQTT Port"), tr("Role"), tr("Time Synchronized")});
 	deviceTable->setModel(deviceModel);
 	deviceTable->setSelectionBehavior(QAbstractItemView::SelectRows);
 	deviceTable->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -191,8 +192,19 @@ void DeviceSearchDialog::sendDatagram()
 
 void DeviceSearchDialog::updateDevice(const Device &device)
 {
-	const QStringList values{device.id, device.ip, QString::number(device.mqttPort),
-				 QString::number(device.protocolVersion)};
+	const QString unknown = tr("Unknown");
+	const QString timeSynchronized = device.timeSynchronized.has_value()
+					 ? (device.timeSynchronized.value() ? tr("Yes") : tr("No"))
+					 : unknown;
+	const QStringList values{device.id,
+				 device.serialNumber.isEmpty() ? unknown : device.serialNumber,
+				 device.ip,
+				 device.mask.isEmpty() ? unknown : device.mask,
+				 device.mac.isEmpty() ? unknown : device.mac,
+				 device.version.isEmpty() ? unknown : device.version,
+				 QString::number(device.mqttPort),
+				 device.role.isEmpty() ? unknown : device.role,
+				 timeSynchronized};
 	devices.insert(device.id, device);
 
 	const auto existing = deviceRows.constFind(device.id);
