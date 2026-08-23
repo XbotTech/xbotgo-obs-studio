@@ -150,6 +150,7 @@ public:
 	bool isStreaming() const override { return streaming_; }
 	void disconnect() override
 	{
+		send(SetMotorAngleReportingRequest{false});
 		stopStreaming();
 		if (session_ && connected_) {
 			session_->disconnectPeerSession(device_id_);

@@ -90,7 +90,6 @@ static void falconm_control_worker(falconm_source *d)
 		}
 
 		if (session_active) {
-			d->stream->send(SetMotorAngleReportingRequest{false});
 			d->stream->disconnect();
 			session_active = false;
 		}
