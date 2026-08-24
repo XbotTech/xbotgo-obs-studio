@@ -27,7 +27,6 @@ class OBSBasicFalconMControl : public QDialog {
 	QComboBox *modeSelector = nullptr;
 	QPushButton *modeRefresh = nullptr;
 	QPushButton *parametersRefresh = nullptr;
-	QPushButton *parametersApply = nullptr;
 	QLabel *parametersStatus = nullptr;
 	QLabel *parametersMode = nullptr;
 	QLabel *parametersResolution = nullptr;
@@ -66,7 +65,6 @@ class OBSBasicFalconMControl : public QDialog {
 	bool confirmedAutoZoom = false;
 	bool confirmedAutoTracking = false;
 	bool hasConfirmedCaptureParameters = false;
-	bool applyingCaptureParameters = false;
 	bool waitingForModes = false;
 	bool waitingForModeResult = false;
 	bool sourceWasActive = false;
@@ -90,8 +88,9 @@ private:
 	void UpdateManualZoomEnabled();
 	void QueryModes();
 	void QueryCaptureParameters();
-	void ApplyCaptureParameters();
-	void UpdateParametersApplyEnabled();
+	void ApplyAutoZoom(bool checked);
+	void ApplyAutoTracking(bool checked);
+	void ApplyAngleRange();
 	void UpdateModes();
 	void UpdateCaptureParameters();
 	void SelectMode(int index);

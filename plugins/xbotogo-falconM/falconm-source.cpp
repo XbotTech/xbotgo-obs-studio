@@ -362,6 +362,37 @@ static void falconm_set_capture_auto_tracking(void *data, calldata_t *cd)
 	calldata_set_bool(cd, "success", success);
 }
 
+static void falconm_set_capture_auto_zoom(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	bool auto_zoom = false;
+	if (!d->stream || !calldata_get_bool(cd, "auto_zoom", &auto_zoom)) {
+		calldata_set_bool(cd, "success", false);
+		return;
+	}
+	const bool success = falconm_update_capture_parameters(
+		d, [auto_zoom](falconm_capture_parameters &parameters) {
+			parameters.auto_zoom = auto_zoom;
+		});
+	calldata_set_bool(cd, "success", success);
+}
+
+static void falconm_set_capture_angle_range(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	long long angle_range = -1;
+	if (!d->stream || !calldata_get_int(cd, "angle_range", &angle_range) || angle_range < 60 ||
+	    angle_range > 150) {
+		calldata_set_bool(cd, "success", false);
+		return;
+	}
+	const bool success = falconm_update_capture_parameters(
+		d, [angle_range](falconm_capture_parameters &parameters) {
+			parameters.angle_range = static_cast<uint16_t>(angle_range);
+		});
+	calldata_set_bool(cd, "success", success);
+}
+
 static void falconm_set_capture_tracking_and_angle_range(void *data, calldata_t *cd)
 {
 	auto *d = static_cast<falconm_source *>(data);
@@ -521,6 +552,10 @@ void falconm_register_proc_handler(falconm_source *d)
 		falconm_set_capture_parameters, d);
 	proc_handler_add(ph, "void set_capture_auto_tracking(bool auto_tracking, out bool success)",
 			 falconm_set_capture_auto_tracking, d);
+	proc_handler_add(ph, "void set_capture_auto_zoom(bool auto_zoom, out bool success)",
+			 falconm_set_capture_auto_zoom, d);
+	proc_handler_add(ph, "void set_capture_angle_range(int angle_range, out bool success)",
+			 falconm_set_capture_angle_range, d);
 	proc_handler_add(
 		ph, "void set_capture_tracking_and_angle_range(bool auto_tracking, int angle_range, out bool success)",
 		falconm_set_capture_tracking_and_angle_range, d);
