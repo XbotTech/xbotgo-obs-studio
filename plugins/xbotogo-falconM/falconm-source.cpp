@@ -68,7 +68,6 @@ static void falconm_control_worker(falconm_source *d)
 		std::string broker_address;
 		std::string device_id;
 		uint16_t broker_port = DEFAULT_MQTT_PORT;
-		bool requested_active = false;
 		uint64_t request_serial = 0;
 
 		{
@@ -81,7 +80,6 @@ static void falconm_control_worker(falconm_source *d)
 				break;
 			}
 
-			requested_active = d->requested_active;
 			broker_address = d->broker_address;
 			device_id = d->device_id;
 			broker_port = d->broker_port;
@@ -106,10 +104,6 @@ static void falconm_control_worker(falconm_source *d)
 			}
 		}
 
-		if (!requested_active) {
-			continue;
-		}
-
 		d->stopping = false;
 		if (!d->stream->connect(device_id, broker_address, broker_port)) {
 			blog(LOG_ERROR, "FalconM: asynchronous connect failed for device '%s'", device_id.c_str());
@@ -125,24 +119,13 @@ static void falconm_control_worker(falconm_source *d)
 	}
 }
 
-static void falconm_request_state(falconm_source *d, bool active)
+static void falconm_request_reconnect(falconm_source *d)
 {
 	{
 		std::lock_guard<std::mutex> lock(d->control_mutex);
-		d->requested_active = active;
 		++d->request_serial;
 	}
 	d->control_cv.notify_one();
-}
-
-static void falconm_stop(falconm_source *d)
-{
-	if (!d->active.exchange(false)) {
-		return;
-	}
-	d->stopping = true;
-	falconm_request_state(d, false);
-	obs_source_output_video(d->source, nullptr);
 }
 
 static void *falconm_create(obs_data_t *s, obs_source_t *source)
@@ -165,6 +148,7 @@ static void *falconm_create(obs_data_t *s, obs_source_t *source)
 		output_audio(d, f);
 	});
 	d->control_thread = std::thread(falconm_control_worker, d);
+	falconm_request_reconnect(d);
 	blog(LOG_INFO, "FalconM: falconm_create result=%p broker_address='%s' device_id='%s' broker_port=%u", (void *)d,
 	     d->broker_address.c_str(), d->device_id.c_str(), d->broker_port);
 	falconm_register_proc_handler(d);
@@ -174,12 +158,10 @@ static void falconm_destroy(void *p)
 {
 	log_source_callback_thread("destroy");
 	auto *d = (falconm_source *)p;
-	d->active = false;
 	d->stopping = true;
 	obs_source_output_video(d->source, nullptr);
 	{
 		std::lock_guard<std::mutex> lock(d->control_mutex);
-		d->requested_active = false;
 		d->worker_stop = true;
 		++d->request_serial;
 	}
@@ -215,9 +197,8 @@ static void falconm_update(void *p, obs_data_t *s)
 		d->broker_address = broker_address;
 		d->device_id = device_id;
 		d->broker_port = broker_port;
-		if (connection_changed && d->active) {
+		if (connection_changed) {
 			d->stopping = true;
-			d->requested_active = true;
 			++d->request_serial;
 			notify_worker = true;
 		}
@@ -225,20 +206,6 @@ static void falconm_update(void *p, obs_data_t *s)
 	if (notify_worker) {
 		d->control_cv.notify_one();
 	}
-}
-static void falconm_activate(void *p)
-{
-	log_source_callback_thread("activate");
-	auto *d = (falconm_source *)p;
-	if (d->active.exchange(true)) {
-		return;
-	}
-	falconm_request_state(d, true);
-}
-static void falconm_deactivate(void *p)
-{
-	log_source_callback_thread("deactivate");
-	falconm_stop((falconm_source *)p);
 }
 
 static void falconm_send_direction(void *data, calldata_t *cd)
@@ -633,8 +600,6 @@ obs_source_info falconm_source_info = {.id = "xbotogo_falconm",
 				       .destroy = falconm_destroy,
 				       .get_defaults = falconm_defaults,
 				       .get_properties = falconm_properties,
-				       .update = falconm_update,
-				       .activate = falconm_activate,
-				       .deactivate = falconm_deactivate};
+				       .update = falconm_update};
 
 } // namespace xbotgo
