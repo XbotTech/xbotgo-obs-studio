@@ -9,6 +9,10 @@ class QLabel;
 class QPushButton;
 class QTimer;
 
+namespace XBotGo {
+class SliderControl;
+}
+
 class OBSBasicFalconMControl : public QDialog {
 	Q_OBJECT
 	obs_source_t *source = nullptr;
@@ -29,7 +33,7 @@ class OBSBasicFalconMControl : public QDialog {
 	QLabel *parametersMute = nullptr;
 	QLabel *parametersAutoZoom = nullptr;
 	QCheckBox *parametersAutoTracking = nullptr;
-	QLabel *parametersAngleRange = nullptr;
+	XBotGo::SliderControl *parametersAngleRange = nullptr;
 	QLabel *parametersAccelSpeed = nullptr;
 	QLabel *parametersCountdown = nullptr;
 	QLabel *parametersFlicker = nullptr;
@@ -43,6 +47,10 @@ class OBSBasicFalconMControl : public QDialog {
 	uint64_t parametersQuerySequence = 0;
 	uint64_t displayedParametersSequence = 0;
 	int confirmedMode = -1;
+	int confirmedAngleRange = 0;
+	bool confirmedAutoTracking = false;
+	bool hasConfirmedCaptureParameters = false;
+	bool applyingCaptureParameters = false;
 	bool waitingForModes = false;
 	bool waitingForModeResult = false;
 	bool sourceWasActive = false;
@@ -57,6 +65,7 @@ private:
 	void QueryModes();
 	void QueryCaptureParameters();
 	void ApplyCaptureParameters();
+	void UpdateParametersApplyEnabled();
 	void UpdateModes();
 	void UpdateCaptureParameters();
 	void SelectMode(int index);

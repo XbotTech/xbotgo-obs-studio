@@ -6,6 +6,7 @@
 #include <obs.h>
 #include <callback/calldata.h>
 #include <qt-wrappers.hpp>
+#include <xbotgo/components/XBotGoSliderControl.hpp>
 
 #include "../../plugins/xbotogo-falconM/falconm-protocol.hpp"
 
@@ -194,7 +195,13 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	parametersMute = new QLabel(this);
 	parametersAutoZoom = new QLabel(this);
 	parametersAutoTracking = new QCheckBox(this);
-	parametersAngleRange = new QLabel(this);
+	parametersAutoTracking->setEnabled(false);
+	parametersAngleRange = new XBotGo::SliderControl(this);
+	parametersAngleRange->setTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAngleRange"));
+	parametersAngleRange->setRange(60, 150);
+	parametersAngleRange->setSingleStep(1);
+	parametersAngleRange->setValueFormatter([](int value) { return QStringLiteral("%1°").arg(value); });
+	parametersAngleRange->setEnabled(false);
 	parametersAccelSpeed = new QLabel(this);
 	parametersCountdown = new QLabel(this);
 	parametersFlicker = new QLabel(this);
@@ -242,8 +249,7 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	parametersForm->addRow(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAutoZoom"), parametersAutoZoom);
 	parametersForm->addRow(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAutoTracking"),
 			       parametersAutoTracking);
-	parametersForm->addRow(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAngleRange"),
-			       parametersAngleRange);
+	parametersForm->addRow(parametersAngleRange);
 	parametersForm->addRow(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAccelSpeed"),
 			       parametersAccelSpeed);
 	parametersForm->addRow(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterCountdown"), parametersCountdown);
@@ -266,6 +272,10 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	connect(modeRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryModes);
 	connect(parametersRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryCaptureParameters);
 	connect(parametersApply, &QPushButton::clicked, this, &OBSBasicFalconMControl::ApplyCaptureParameters);
+	connect(parametersAutoTracking, &QCheckBox::toggled, this,
+		&OBSBasicFalconMControl::UpdateParametersApplyEnabled);
+	connect(parametersAngleRange, &XBotGo::SliderControl::valueChanged, this,
+		&OBSBasicFalconMControl::UpdateParametersApplyEnabled);
 	connect(modeSelector, qOverload<int>(&QComboBox::currentIndexChanged), this,
 		&OBSBasicFalconMControl::SelectMode);
 	connect(buzzerLongButton, &QPushButton::clicked, this, [this] { SendBuzzerMode(3); });
@@ -287,6 +297,8 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	connect(parametersTimeout, &QTimer::timeout, this, [this] {
 		parametersRefresh->setEnabled(obs_source_active(source));
 		parametersApply->setEnabled(false);
+		parametersAutoTracking->setEnabled(false);
+		parametersAngleRange->setEnabled(false);
 		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersQueryFailed"));
 	});
 	Refresh();
@@ -365,6 +377,8 @@ void OBSBasicFalconMControl::QueryCaptureParameters()
 	if (!source || !obs_source_active(source)) {
 		parametersRefresh->setEnabled(false);
 		parametersApply->setEnabled(false);
+		parametersAutoTracking->setEnabled(false);
+		parametersAngleRange->setEnabled(false);
 		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
 		return;
 	}
@@ -390,6 +404,8 @@ void OBSBasicFalconMControl::QueryCaptureParameters()
 	}
 	parametersRefresh->setEnabled(false);
 	parametersApply->setEnabled(false);
+	parametersAutoTracking->setEnabled(false);
+	parametersAngleRange->setEnabled(false);
 	parametersTimeout->start();
 	parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersLoading"));
 }
@@ -398,19 +414,46 @@ void OBSBasicFalconMControl::ApplyCaptureParameters()
 {
 	if (!source || !obs_source_active(source)) {
 		parametersApply->setEnabled(false);
+		parametersAutoTracking->setEnabled(false);
+		parametersAngleRange->setEnabled(false);
 		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
 		return;
 	}
+	if (!hasConfirmedCaptureParameters ||
+	    (parametersAutoTracking->isChecked() == confirmedAutoTracking &&
+	     parametersAngleRange->value() == confirmedAngleRange)) {
+		UpdateParametersApplyEnabled();
+		return;
+	}
+	applyingCaptureParameters = true;
+	UpdateParametersApplyEnabled();
 	calldata_t cd;
 	calldata_init(&cd);
 	calldata_set_bool(&cd, "auto_tracking", parametersAutoTracking->isChecked());
-	proc_handler_call(obs_source_get_proc_handler(source), "set_capture_auto_tracking", &cd);
+	calldata_set_int(&cd, "angle_range", parametersAngleRange->value());
+	proc_handler_call(obs_source_get_proc_handler(source), "set_capture_tracking_and_angle_range", &cd);
 	bool success = false;
 	calldata_get_bool(&cd, "success", &success);
 	calldata_free(&cd);
+	applyingCaptureParameters = false;
+	if (success) {
+		confirmedAutoTracking = parametersAutoTracking->isChecked();
+		confirmedAngleRange = parametersAngleRange->value();
+	}
+	UpdateParametersApplyEnabled();
 	parametersStatus->setText(
 		QTStr(success ? "Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersApplied"
 			      : "Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersApplyFailed"));
+}
+
+void OBSBasicFalconMControl::UpdateParametersApplyEnabled()
+{
+	const bool active = source && obs_source_active(source);
+	const bool changed = hasConfirmedCaptureParameters &&
+		(parametersAutoTracking->isChecked() != confirmedAutoTracking ||
+		 parametersAngleRange->value() != confirmedAngleRange);
+	parametersApply->setEnabled(active && !applyingCaptureParameters && parametersAutoTracking->isEnabled() &&
+				    parametersAngleRange->isEnabled() && changed);
 }
 
 void OBSBasicFalconMControl::UpdateCaptureParameters()
@@ -448,6 +491,7 @@ void OBSBasicFalconMControl::UpdateCaptureParameters()
 	}
 
 	const QSignalBlocker auto_tracking_blocker(parametersAutoTracking);
+	const QSignalBlocker angle_range_blocker(parametersAngleRange);
 	QStringList supported;
 	for (long long index = 0; index < resolutionCount; ++index) {
 		calldata_t item;
@@ -473,7 +517,10 @@ void OBSBasicFalconMControl::UpdateCaptureParameters()
 	parametersAutoZoom->setText(autoZoom ? QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Yes")
 					     : QTStr("Basic.MainMenu.XBotGo.DeviceManagement.No"));
 	parametersAutoTracking->setChecked(autoTracking);
-	parametersAngleRange->setText(QString::number(angleRange));
+	parametersAngleRange->setValue(static_cast<int>(angleRange));
+	confirmedAutoTracking = autoTracking;
+	confirmedAngleRange = parametersAngleRange->value();
+	hasConfirmedCaptureParameters = true;
 	parametersAccelSpeed->setText(QString::number(accelSpeed));
 	parametersCountdown->setText(hasCountdown ? QString::number(countdown) : QStringLiteral("N/A"));
 	parametersFlicker->setText(hasFlicker ? QString::number(flicker) : QStringLiteral("N/A"));
@@ -481,7 +528,9 @@ void OBSBasicFalconMControl::UpdateCaptureParameters()
 								    : supported.join(QStringLiteral(", ")));
 	parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersReady"));
 	parametersRefresh->setEnabled(true);
-	parametersApply->setEnabled(true);
+	parametersAutoTracking->setEnabled(true);
+	parametersAngleRange->setEnabled(true);
+	UpdateParametersApplyEnabled();
 	parametersTimeout->stop();
 	displayedParametersSequence = static_cast<uint64_t>(sequence);
 	calldata_free(&cd);
@@ -625,6 +674,8 @@ void OBSBasicFalconMControl::Refresh()
 		}
 		parametersRefresh->setEnabled(false);
 		parametersApply->setEnabled(false);
+		parametersAutoTracking->setEnabled(false);
+		parametersAngleRange->setEnabled(false);
 		parametersTimeout->stop();
 		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
 	}
