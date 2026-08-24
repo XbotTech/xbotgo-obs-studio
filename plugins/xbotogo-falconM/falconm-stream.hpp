@@ -46,6 +46,8 @@ struct falconm_device_state {
 	falconm_motor_angle motor_angle;
 	falconm_hall_calibration_status hall_calibration_status = falconm_hall_calibration_status::uncalibrated;
 	uint64_t hall_calibration_sequence = 0;
+	uint8_t current_zoom = 10;
+	uint64_t current_zoom_sequence = 0;
 };
 
 class FalconMStream {

@@ -206,4 +206,22 @@ private:
 	falconm_motor_angle angle_;
 };
 
+class CurrentZoomEvent final : public FalconEvent {
+public:
+	static constexpr std::string_view kTopic = "DCA";
+	std::string_view topic() const override { return kTopic; }
+	bool parse(const uint8_t *payload, size_t size) override
+	{
+		if (!payload || size != 1 || payload[0] < 10 || payload[0] > 30) {
+			return false;
+		}
+		value_ = payload[0];
+		return true;
+	}
+	uint8_t value() const { return value_; }
+
+private:
+	uint8_t value_ = 10;
+};
+
 } // namespace xbotgo

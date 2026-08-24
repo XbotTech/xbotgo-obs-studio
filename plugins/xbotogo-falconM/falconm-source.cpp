@@ -177,6 +177,40 @@ static void falconm_get_hall_calibration(void *data, calldata_t *cd)
 	calldata_set_int(cd, "status", static_cast<long long>(state.hall_calibration_status));
 }
 
+static void falconm_send_manual_zoom(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	long long type = -1, value = 0;
+	if (!d->stream || !calldata_get_int(cd, "type", &type) || !calldata_get_int(cd, "value", &value) ||
+	    (type == static_cast<long long>(falconm_zoom_type::relative) && value != -1 && value != 1) ||
+	    (type == static_cast<long long>(falconm_zoom_type::absolute) && (value < 1 || value > 3)) ||
+	    (type != static_cast<long long>(falconm_zoom_type::relative) &&
+	     type != static_cast<long long>(falconm_zoom_type::absolute))) {
+		calldata_set_bool(cd, "success", false);
+		return;
+	}
+	calldata_set_bool(
+		cd, "success",
+		d->stream->send(ManualZoomRequest{static_cast<falconm_zoom_type>(type), static_cast<int8_t>(value)}));
+}
+
+static void falconm_query_current_zoom(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	calldata_set_bool(cd, "success", d->stream && d->stream->send(QueryCurrentZoomRequest{}));
+}
+
+static void falconm_get_current_zoom(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	if (!d->stream) {
+		return;
+	}
+	const auto state = d->stream->state();
+	calldata_set_int(cd, "sequence", static_cast<long long>(state.current_zoom_sequence));
+	calldata_set_int(cd, "value", state.current_zoom);
+}
+
 static void falconm_get_angle(void *data, calldata_t *cd)
 {
 	auto *d = static_cast<falconm_source *>(data);
@@ -463,6 +497,10 @@ void falconm_register_proc_handler(falconm_source *d)
 	proc_handler_add(ph, "void start_hall_calibration(out bool success)", falconm_start_hall_calibration, d);
 	proc_handler_add(ph, "void get_hall_calibration(out int sequence, out int status)",
 			 falconm_get_hall_calibration, d);
+	proc_handler_add(ph, "void send_manual_zoom(int type, int value, out bool success)", falconm_send_manual_zoom,
+			 d);
+	proc_handler_add(ph, "void query_current_zoom(out bool success)", falconm_query_current_zoom, d);
+	proc_handler_add(ph, "void get_current_zoom(out int sequence, out int value)", falconm_get_current_zoom, d);
 	proc_handler_add(
 		ph,
 		"void get_motor_angle(out int result, out float horizontal, out float vertical, out int horizontal_limit, out int vertical_limit)",
