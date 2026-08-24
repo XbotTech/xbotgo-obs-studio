@@ -11,7 +11,7 @@
 3. 从 JSON 的 `sources` 数组找到 `id` 为 `xbotogo_falconm` 的 source。
 4. 根据该 ID 调用插件的 `.create` 回调，执行 `new falconm_source`。
 5. 从 source 的 `settings` 恢复 `broker_address`、`device_id` 和 `broker_port`。
-6. source 被激活后，调用 `FalconMStream::connect()` 连接设备。
+6. `.create` 完成后向内部控制线程提交请求，调用 `FalconMStream::connect()` 连接设备。
 
 ## 启动与注册
 
@@ -118,15 +118,15 @@ static void *falconm_create(obs_data_t *s, obs_source_t *source)
 
 因此，`falconm_source` 是每次启动时新分配的对象，连接参数来自 JSON 的 `settings`，而不是来自上一次运行时的 C++ 对象。
 
-## 激活与连接
+## 创建与连接
 
-source 创建完成后，只有在 source 被场景使用并激活时才建立设备连接。`falconm_activate()` 设置音视频回调，然后调用：
+source 创建完成后会立即向内部控制线程提交连接请求：
 
 ```cpp
-d->stream->connect(d->device_id, d->broker_address, d->broker_port);
+falconm_request_reconnect(d);
 ```
 
-- `plugins/xbotogo-falconM/falconm-source.cpp:93`
+连接、拉流与解码不再受 OBS source 的 showing/active 状态影响。隐藏 source 或切换到其他场景时，OBS 不再合成显示该 source，但 FalconM 连接和预览流仍保持开启。只有删除 source 触发 `falconm_destroy()` 时才停流并断开连接。修改设备连接参数时会在控制线程中断开旧连接并建立新连接。
 
 ## 默认值注意事项
 
@@ -152,7 +152,8 @@ OBS 启动
   -> 根据 id=xbotogo_falconm 创建 source
   -> new falconm_source
   -> 从 settings 恢复 broker_address/device_id/broker_port
-  -> source 激活
+  -> 提交异步连接请求
   -> FalconMStream::connect()
+  -> source 隐藏/显示不改变连接
+  -> source 删除时 FalconMStream::disconnect()
 ```
-

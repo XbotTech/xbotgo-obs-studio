@@ -210,17 +210,17 @@ obs_source_release(source)
 ```text
 source create
   -> 注册 proc_handler
-  -> source activate
   -> FalconMStream::connect
   -> 开启 DGR + 查询 BXR
   -> 接收 BXA/DFA 并更新角度缓存
   -> UI 定时读取缓存
-  -> source deactivate
+  -> source 隐藏/显示时保持连接
+  -> source destroy
   -> 关闭 DGR
   -> stopStreaming / disconnect
 ```
 
-连接失败时 `falconm_activate()` 会立即返回，不再继续执行后续启动流程。
+连接由 source 内部控制线程异步执行；修改设备连接参数时会触发重连。
 
 ## 工程与本地化
 

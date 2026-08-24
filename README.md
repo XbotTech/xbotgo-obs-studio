@@ -118,7 +118,7 @@ cmake --build build_macos_xcode --config Debug --target obs-studio --parallel 8
 2. 在 OBS 主菜单选择 **XBotGo → 搜索设备**，确认设备能够被发现。
 3. 在来源面板新增 FalconM/XBotGo 来源。
 4. 在来源属性中选择搜索到的设备，确认设备 ID、IP/Broker 地址和 MQTT 端口。
-5. 激活来源并检查预览画面及音频电平。
+5. 添加来源后检查预览画面及音频电平；隐藏来源不会断开设备连接。
 
 设备 SSDP 响应必须包含以下字段，且 `X-Device-IP` 必须与数据包来源 IPv4 地址一致：
 
