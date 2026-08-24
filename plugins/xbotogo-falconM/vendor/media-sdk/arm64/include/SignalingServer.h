@@ -17,6 +17,7 @@ struct SignalingClientInfo {
   std::string remoteIp;       // Remote IP address (without scope/interface name)
   std::string localIfName;    // Local interface name (e.g., "en0")
   int localScopeId;           // Local scope ID for IPv6 link-local (0 for IPv4 or non-link-local)
+  std::vector<uint8_t> connectPayload; // Payload carried on _connect/_conack handshake
   SignalingClientInfo() : lastHeartbeatTime(0), appVersion(0), localScopeId(0) {}
 };
 
@@ -53,6 +54,7 @@ struct ConnectClientConfig {
     // for chameleon and falcon(MQTT broker IP)
     std::vector<std::string> ipv4List;
     std::vector<std::string> ipv6List;
+    std::vector<uint8_t> connectPayload; // Payload carried on _connect/_conack handshake
     ConnectClientConfig() : handshakeProtocol(HANDSHAKE_PROTOCOL_UDP), mqttBrokerPort(1883) {
     }
 };

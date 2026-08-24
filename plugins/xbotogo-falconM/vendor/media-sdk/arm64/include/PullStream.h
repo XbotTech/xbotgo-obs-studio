@@ -56,6 +56,7 @@ public:
     virtual void onEncodedFrame(uint32_t ssrc, std::shared_ptr<MediaData> data) = 0;
     virtual void onDecodedFrame(uint32_t ssrc, std::shared_ptr<MediaData> data) = 0;
     virtual void onVideoFormatChanged(uint32_t ssrc, int width, int height) = 0;
+    virtual void onVideoDecodeError(uint32_t ssrc, const VideoDecodeErrorMessage &msg) = 0;
     virtual void onSrtPullStates(const SrtPullStatesMessage& msg) = 0;
 };
 

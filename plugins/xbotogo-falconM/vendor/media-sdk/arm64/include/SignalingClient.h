@@ -11,6 +11,7 @@ struct PeerInfo {
   std::string peerIp;
   // for dragonfly
   std::string peerId;
+  std::vector<uint8_t> connectPayload; // Payload carried on _connect/_conack handshake
 };
 
 class SignalingClientEventHandler {
@@ -31,6 +32,7 @@ struct SignalingConnectConfig {
   std::vector<std::string> ipv4List;
   std::vector<std::string> ipv6List;
   int32_t mqttBrokerPort;
+  std::vector<uint8_t> connectPayload; // Payload carried on _connect/_conack handshake
   SignalingClientEventHandler *handler;
   SignalingConnectConfig() : appVersion(0), mqttBrokerPort(1883), handler(nullptr) {}
 };

@@ -98,6 +98,24 @@ struct VideoFormatChangedMessage : public GenericData {
     VideoFormatChangedMessage() : width(0), height(0) {}
 };
 
+enum VideoDecodeErrorReason {
+    VIDEO_DECODE_ERROR_UNKNOWN = -1,
+    // Failed to create/configure a decoder (no hw/sw codec found, or configure() rejected the stream).
+    VIDEO_DECODE_ERROR_CODEC_UNAVAILABLE = 0,
+    // MediaCodec hit an unrecoverable CodecException while decoding.
+    VIDEO_DECODE_ERROR_CODEC_EXCEPTION = 1,
+    VIDEO_DECODE_ERROR_MAX
+};
+
+// VideoDecoderNode; sent only once decoding has been given up on. Recoverable failures are
+// retried internally (decoder restart) without notifying upward.
+struct VideoDecodeErrorMessage : public GenericData {
+    int32_t codecFormat;    // MEDIA_DATA_FORMAT_H264 or MEDIA_DATA_FORMAT_H265
+    int32_t reason;         // VideoDecodeErrorReason
+    std::string errorMessage;
+    VideoDecodeErrorMessage() : codecFormat(MEDIA_DATA_FORMAT_UNKNOWN), reason(VIDEO_DECODE_ERROR_UNKNOWN) {}
+};
+
 // VideoDecoderNode
 struct VideoDecoderStatesMessage : public GenericData {
     int64_t inputBytes;

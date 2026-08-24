@@ -22,7 +22,7 @@ namespace blink {
         task_info(int32_t tid, const std::string &n, task_type t) : id(tid), name(n), task(t) {}
       };
 
-      worker_thread(const std::string &thrd_name, bool debug = false);
+      worker_thread(const std::string &thrd_name, bool attach_to_java_thread = false, bool debug = false);
       ~worker_thread();
 
       // append task to the end of the queue
