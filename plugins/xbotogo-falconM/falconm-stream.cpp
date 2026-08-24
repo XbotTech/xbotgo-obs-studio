@@ -416,8 +416,8 @@ private:
 	}
 	void onNewSrtStream(const MediaStreamInfo &stream) override
 	{
-		// 	blog(LOG_INFO, "[socket_source] new srt stream ssrc %u type %d format %d", stream.ssrc,
-		// 	     stream.mediaType, stream.mediaFormat);
+		 	blog(LOG_INFO, "[socket_source] new srt stream ssrc %u type %d format %d", stream.ssrc,
+		 	     stream.mediaType, stream.mediaFormat);
 		/* Wires up the SDK-internal decode pipeline (VideoDecoderIos/AudioDecoderIos);
 		 * no surface/renderer is created on mac, only on Android. */
 		if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO) {
