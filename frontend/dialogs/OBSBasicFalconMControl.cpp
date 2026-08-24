@@ -213,6 +213,12 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	angles = new QLabel(this);
 	buzzerLongButton = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.LongBeep"), this);
 	buzzerStatus = new QLabel(this);
+	hallCalibrationStatus = new QLabel(this);
+	hallCalibrationRefresh = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Refresh"), this);
+	hallCalibrationStart =
+		new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationStart"), this);
+	hallCalibrationRefresh->setEnabled(false);
+	hallCalibrationStart->setEnabled(false);
 	auto *grid = new QGridLayout;
 	const auto addButton = [this, grid](const QString &label, int row, int col, int direction) {
 		auto *button = new QPushButton(label, this);
@@ -269,6 +275,13 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	buzzerLayout->addWidget(buzzerLongButton);
 	buzzerLayout->addWidget(buzzerStatus, 1);
 	layout->addLayout(buzzerLayout);
+	auto *hallCalibrationLayout = new QHBoxLayout;
+	hallCalibrationLayout->addWidget(
+		new QLabel(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibration"), this));
+	hallCalibrationLayout->addWidget(hallCalibrationStatus, 1);
+	hallCalibrationLayout->addWidget(hallCalibrationStart);
+	hallCalibrationLayout->addWidget(hallCalibrationRefresh);
+	layout->addLayout(hallCalibrationLayout);
 	connect(modeRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryModes);
 	connect(parametersRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryCaptureParameters);
 	connect(parametersApply, &QPushButton::clicked, this, &OBSBasicFalconMControl::ApplyCaptureParameters);
@@ -279,6 +292,8 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	connect(modeSelector, qOverload<int>(&QComboBox::currentIndexChanged), this,
 		&OBSBasicFalconMControl::SelectMode);
 	connect(buzzerLongButton, &QPushButton::clicked, this, [this] { SendBuzzerMode(3); });
+	connect(hallCalibrationRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryHallCalibration);
+	connect(hallCalibrationStart, &QPushButton::clicked, this, &OBSBasicFalconMControl::StartHallCalibration);
 
 	poller = new QTimer(this);
 	connect(poller, &QTimer::timeout, this, &OBSBasicFalconMControl::Refresh);
@@ -300,6 +315,17 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 		parametersAutoTracking->setEnabled(false);
 		parametersAngleRange->setEnabled(false);
 		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersQueryFailed"));
+	});
+	hallCalibrationTimeout = new QTimer(this);
+	hallCalibrationTimeout->setSingleShot(true);
+	hallCalibrationTimeout->setInterval(5000);
+	connect(hallCalibrationTimeout, &QTimer::timeout, this, [this] {
+		const bool active = source && obs_source_active(source);
+		const bool calibrating = currentHallCalibrationStatus ==
+			static_cast<int>(xbotgo::falconm_hall_calibration_status::calibrating);
+		hallCalibrationRefresh->setEnabled(active);
+		hallCalibrationStart->setEnabled(active && !calibrating);
+		hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationTimeout"));
 	});
 	Refresh();
 }
@@ -337,6 +363,119 @@ void OBSBasicFalconMControl::SendBuzzerMode(int mode)
 	calldata_free(&cd);
 	buzzerStatus->setText(QTStr(success ? "Basic.MainMenu.XBotGo.DeviceManagement.BuzzerSent"
 					     : "Basic.MainMenu.XBotGo.DeviceManagement.BuzzerSendFailed"));
+}
+
+void OBSBasicFalconMControl::QueryHallCalibration()
+{
+	if (!source || !obs_source_active(source)) {
+		hallCalibrationRefresh->setEnabled(false);
+		hallCalibrationStart->setEnabled(false);
+		hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		return;
+	}
+
+	calldata_t state;
+	calldata_init(&state);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_hall_calibration", &state);
+	long long sequence = 0;
+	calldata_get_int(&state, "sequence", &sequence);
+	calldata_free(&state);
+
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "query_hall_calibration", &cd);
+	bool success = false;
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	if (!success) {
+		hallCalibrationStatus->setText(
+			QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationQueryFailed"));
+		hallCalibrationRefresh->setEnabled(true);
+		return;
+	}
+
+	hallCalibrationQuerySequence = static_cast<uint64_t>(sequence);
+	hallCalibrationRefresh->setEnabled(false);
+	hallCalibrationStart->setEnabled(false);
+	hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationLoading"));
+	hallCalibrationTimeout->start();
+}
+
+void OBSBasicFalconMControl::StartHallCalibration()
+{
+	if (!source || !obs_source_active(source)) {
+		return;
+	}
+
+	calldata_t state;
+	calldata_init(&state);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_hall_calibration", &state);
+	long long sequence = 0;
+	calldata_get_int(&state, "sequence", &sequence);
+	calldata_free(&state);
+
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "start_hall_calibration", &cd);
+	bool success = false;
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	if (!success) {
+		hallCalibrationStatus->setText(
+			QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationStartFailed"));
+		return;
+	}
+
+	hallCalibrationQuerySequence = static_cast<uint64_t>(sequence);
+	hallCalibrationRefresh->setEnabled(false);
+	hallCalibrationStart->setEnabled(false);
+	hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationStarting"));
+	hallCalibrationTimeout->start();
+}
+
+void OBSBasicFalconMControl::UpdateHallCalibration()
+{
+	if (!source || !obs_source_active(source)) {
+		return;
+	}
+
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_hall_calibration", &cd);
+	long long sequence = 0, status = -1;
+	calldata_get_int(&cd, "sequence", &sequence);
+	calldata_get_int(&cd, "status", &status);
+	calldata_free(&cd);
+	if (sequence <= 0 || static_cast<uint64_t>(sequence) <= hallCalibrationQuerySequence ||
+	    static_cast<uint64_t>(sequence) == displayedHallCalibrationSequence) {
+		return;
+	}
+
+	QString statusText;
+	switch (static_cast<xbotgo::falconm_hall_calibration_status>(status)) {
+	case xbotgo::falconm_hall_calibration_status::uncalibrated:
+		statusText = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationUncalibrated");
+		break;
+	case xbotgo::falconm_hall_calibration_status::calibrating:
+		statusText = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationCalibrating");
+		break;
+	case xbotgo::falconm_hall_calibration_status::succeeded:
+		statusText = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationSucceeded");
+		break;
+	case xbotgo::falconm_hall_calibration_status::failed:
+		statusText = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationFailed");
+		break;
+	default:
+		return;
+	}
+
+	currentHallCalibrationStatus = static_cast<int>(status);
+	displayedHallCalibrationSequence = static_cast<uint64_t>(sequence);
+	hallCalibrationTimeout->stop();
+	hallCalibrationStatus->setText(statusText);
+	hallCalibrationRefresh->setEnabled(true);
+	hallCalibrationStart->setEnabled(
+		status != static_cast<int>(xbotgo::falconm_hall_calibration_status::calibrating));
 }
 
 void OBSBasicFalconMControl::QueryModes()
@@ -662,10 +801,12 @@ void OBSBasicFalconMControl::Refresh()
 			sourceWasActive = true;
 			QueryModes();
 			QueryCaptureParameters();
+			QueryHallCalibration();
 		}
 		UpdateModes();
 		HandleModeResult();
 		UpdateCaptureParameters();
+		UpdateHallCalibration();
 	} else {
 		sourceWasActive = false;
 		if (!waitingForModeResult) {
@@ -678,6 +819,10 @@ void OBSBasicFalconMControl::Refresh()
 		parametersAngleRange->setEnabled(false);
 		parametersTimeout->stop();
 		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		hallCalibrationRefresh->setEnabled(false);
+		hallCalibrationStart->setEnabled(false);
+		hallCalibrationTimeout->stop();
+		hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
 	}
 	calldata_t cd;
 	calldata_init(&cd);

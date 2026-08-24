@@ -20,6 +20,9 @@ class OBSBasicFalconMControl : public QDialog {
 	QLabel *angles = nullptr;
 	QPushButton *buzzerLongButton = nullptr;
 	QLabel *buzzerStatus = nullptr;
+	QLabel *hallCalibrationStatus = nullptr;
+	QPushButton *hallCalibrationRefresh = nullptr;
+	QPushButton *hallCalibrationStart = nullptr;
 	QLabel *modeStatus = nullptr;
 	QComboBox *modeSelector = nullptr;
 	QPushButton *modeRefresh = nullptr;
@@ -41,11 +44,15 @@ class OBSBasicFalconMControl : public QDialog {
 	QTimer *poller = nullptr;
 	QTimer *modeTimeout = nullptr;
 	QTimer *parametersTimeout = nullptr;
+	QTimer *hallCalibrationTimeout = nullptr;
 	uint64_t modeQuerySequence = 0;
 	uint64_t modeResultSequence = 0;
 	uint64_t displayedModesSequence = 0;
 	uint64_t parametersQuerySequence = 0;
 	uint64_t displayedParametersSequence = 0;
+	uint64_t hallCalibrationQuerySequence = 0;
+	uint64_t displayedHallCalibrationSequence = 0;
+	int currentHallCalibrationStatus = -1;
 	int confirmedMode = -1;
 	int confirmedAngleRange = 0;
 	bool confirmedAutoTracking = false;
@@ -62,6 +69,9 @@ public:
 private:
 	void Send(int direction, int operation);
 	void SendBuzzerMode(int mode);
+	void QueryHallCalibration();
+	void StartHallCalibration();
+	void UpdateHallCalibration();
 	void QueryModes();
 	void QueryCaptureParameters();
 	void ApplyCaptureParameters();

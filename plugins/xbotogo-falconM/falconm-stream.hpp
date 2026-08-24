@@ -44,6 +44,8 @@ struct falconm_device_state {
 	falconm_capture_parameters default_capture_parameters;
 	uint64_t default_capture_parameters_sequence = 0;
 	falconm_motor_angle motor_angle;
+	falconm_hall_calibration_status hall_calibration_status = falconm_hall_calibration_status::uncalibrated;
+	uint64_t hall_calibration_sequence = 0;
 };
 
 class FalconMStream {
