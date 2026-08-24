@@ -34,7 +34,7 @@ class OBSBasicFalconMControl : public QDialog {
 	QLabel *parametersResolutionId = nullptr;
 	QLabel *parametersWatermark = nullptr;
 	QLabel *parametersMute = nullptr;
-	QLabel *parametersAutoZoom = nullptr;
+	QCheckBox *parametersAutoZoom = nullptr;
 	QCheckBox *parametersAutoTracking = nullptr;
 	XBotGo::SliderControl *parametersAngleRange = nullptr;
 	QLabel *parametersAccelSpeed = nullptr;
@@ -55,6 +55,7 @@ class OBSBasicFalconMControl : public QDialog {
 	int currentHallCalibrationStatus = -1;
 	int confirmedMode = -1;
 	int confirmedAngleRange = 0;
+	bool confirmedAutoZoom = false;
 	bool confirmedAutoTracking = false;
 	bool hasConfirmedCaptureParameters = false;
 	bool applyingCaptureParameters = false;
