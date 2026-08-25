@@ -9,6 +9,7 @@ add_library(xbotogo-falconM MODULE
   xbotogo-falconM.cpp
   falconm-source.cpp
   falconm-stream.cpp
+  falconm-log.hpp
   falconm.hpp
   falconm-stream.hpp
   falconm-protocol.hpp

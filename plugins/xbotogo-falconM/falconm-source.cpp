@@ -1,4 +1,5 @@
 #include "falconm.hpp"
+#include "falconm-log.hpp"
 
 #ifdef XBOTGO_DEVICE_DISCOVERY
 #include <XBotGoDeviceSearchDialog.hpp>
@@ -26,8 +27,8 @@ static void log_source_callback_thread(const char *callback_name)
 		return;
 	}
 
-	blog(LOG_INFO, "FalconM: callback=%s thread_id=%llu is_main_thread=%s", callback_name,
-	     static_cast<unsigned long long>(thread_id), is_main_thread ? "true" : "false");
+	FALCONM_LOG_INFO("FalconM: callback=%s thread_id=%llu is_main_thread=%s", callback_name,
+			 static_cast<unsigned long long>(thread_id), is_main_thread ? "true" : "false");
 }
 
 static uint16_t get_broker_port(obs_data_t *settings)
@@ -131,10 +132,10 @@ static void falconm_request_reconnect(falconm_source *d)
 static void *falconm_create(obs_data_t *s, obs_source_t *source)
 {
 	log_source_callback_thread("create");
-	blog(LOG_INFO,
-	     "FalconM: falconm_create settings=%p source=%p broker_address='%s' device_id='%s' broker_port=%lld",
-	     (void *)s, (void *)source, obs_data_get_string(s, "broker_address"), obs_data_get_string(s, "device_id"),
-	     obs_data_get_int(s, "broker_port"));
+	FALCONM_LOG_INFO(
+		"FalconM: falconm_create settings=%p source=%p broker_address='%s' device_id='%s' broker_port=%lld",
+		(void *)s, (void *)source, obs_data_get_string(s, "broker_address"), obs_data_get_string(s, "device_id"),
+		obs_data_get_int(s, "broker_port"));
 	auto *d = new falconm_source;
 	d->source = source;
 	d->stream = falconm_stream_create();
@@ -149,8 +150,8 @@ static void *falconm_create(obs_data_t *s, obs_source_t *source)
 	});
 	d->control_thread = std::thread(falconm_control_worker, d);
 	falconm_request_reconnect(d);
-	blog(LOG_INFO, "FalconM: falconm_create result=%p broker_address='%s' device_id='%s' broker_port=%u", (void *)d,
-	     d->broker_address.c_str(), d->device_id.c_str(), d->broker_port);
+	FALCONM_LOG_INFO("FalconM: falconm_create result=%p broker_address='%s' device_id='%s' broker_port=%u",
+			 (void *)d, d->broker_address.c_str(), d->device_id.c_str(), d->broker_port);
 	falconm_register_proc_handler(d);
 	return d;
 }
@@ -187,12 +188,12 @@ static void falconm_update(void *p, obs_data_t *s)
 		const bool connection_changed = d->broker_address != broker_address || d->device_id != device_id ||
 					 d->broker_port != broker_port;
 
-		blog(LOG_INFO,
-		     "FalconM: falconm_update source_data=%p settings=%p settings.broker_address='%s' "
-		     "settings.device_id='%s' settings.broker_port=%lld current.broker_address='%s' "
-		     "current.device_id='%s' current.broker_port=%u",
-		     p, (void *)s, broker_address.c_str(), device_id.c_str(), obs_data_get_int(s, "broker_port"),
-		     d->broker_address.c_str(), d->device_id.c_str(), d->broker_port);
+		FALCONM_LOG_INFO(
+			"FalconM: falconm_update source_data=%p settings=%p settings.broker_address='%s' "
+			"settings.device_id='%s' settings.broker_port=%lld current.broker_address='%s' "
+			"current.device_id='%s' current.broker_port=%u",
+			p, (void *)s, broker_address.c_str(), device_id.c_str(), obs_data_get_int(s, "broker_port"),
+			d->broker_address.c_str(), d->device_id.c_str(), d->broker_port);
 
 		d->broker_address = broker_address;
 		d->device_id = device_id;
@@ -583,9 +584,9 @@ static void falconm_defaults(obs_data_t *s)
 	obs_data_set_default_string(s, "broker_address", "");
 	obs_data_set_default_string(s, "device_id", "");
 	obs_data_set_default_int(s, "broker_port", DEFAULT_MQTT_PORT);
-	blog(LOG_INFO, "FalconM: falconm_defaults settings=%p broker_address='%s' device_id='%s' broker_port=%lld",
-	     (void *)s, obs_data_get_string(s, "broker_address"), obs_data_get_string(s, "device_id"),
-	     obs_data_get_int(s, "broker_port"));
+	FALCONM_LOG_INFO("FalconM: falconm_defaults settings=%p broker_address='%s' device_id='%s' broker_port=%lld",
+			 (void *)s, obs_data_get_string(s, "broker_address"), obs_data_get_string(s, "device_id"),
+			 obs_data_get_int(s, "broker_port"));
 	obs_data_set_default_string(s, "device_version", "");
 	obs_data_set_default_string(s, "device_serial_number", "");
 }

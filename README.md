@@ -148,6 +148,8 @@ X-Protocol-Version: <0-65535>
 - **修改后未生效**：重新构建 `xbotogo-falconM` 与 `obs-studio`，确认运行的是当前构建目录产出的 App。
 
 OBS 日志可从菜单 **帮助 → 日志文件 → 查看当前日志** 打开。XBotGo 直播请求、心跳、停止请求及部分设备发现过程会写入该日志。
+FalconM 的 info 日志由编译宏 `XBOTGO_FALCONM_INFO_LOG_ENABLED` 控制，默认值为 `1`；设为 `0` 可关闭 info
+日志，不影响 warning 和 error 日志。info 日志消息包含精确到毫秒的本地时间。
 
 ## 开发约定
 
