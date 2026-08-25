@@ -48,4 +48,24 @@ private:
 	uint8_t mode_;
 };
 
+class ManualZoomRequest final : public FalconRequest {
+public:
+	ManualZoomRequest(falconm_zoom_type type, int8_t value) : type_(type), value_(value) {}
+	std::string_view topic() const override { return "DBR"; }
+	std::vector<uint8_t> encodePayload() const override
+	{
+		return {static_cast<uint8_t>(type_), static_cast<uint8_t>(value_)};
+	}
+
+private:
+	falconm_zoom_type type_;
+	int8_t value_;
+};
+
+class QueryCurrentZoomRequest final : public FalconRequest {
+public:
+	std::string_view topic() const override { return "DCR"; }
+	std::vector<uint8_t> encodePayload() const override { return {0}; }
+};
+
 } // namespace xbotgo
