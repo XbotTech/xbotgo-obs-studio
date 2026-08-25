@@ -104,7 +104,8 @@ public:
 		disconnect();
 		delete session_;
 	}
-	bool connect(const std::string &device_id, const std::string &broker_address, uint16_t broker_port) override
+	bool connect(const std::string &device_id, const std::string &broker_address, uint16_t broker_port,
+		     const falconm_video_encoder_options &encoder_options) override
 	{
 		FALCONM_LOG_INFO(
 			"FalconM: this=%p uniqueID=%d connect controller_id='%s' device_id='%s' broker_address='%s' "
@@ -118,6 +119,10 @@ public:
 		}
 		device_id_ = device_id;
 		broker_address_ = broker_address;
+		{
+			std::lock_guard<std::mutex> lock(encoder_options_mutex_);
+			encoder_options_ = encoder_options;
+		}
 		if (session_->startSession() != 0) {
 			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d BLRTCServerSession startSession failed", (void *)this,
 			     instance_id_);
@@ -278,7 +283,12 @@ private:
 			send(QueryMotorAngleRequest{});
 			send(QueryHallCalibrationRequest{});
 			send(QueryCurrentZoomRequest{});
-			if (!startStreaming()) {
+			falconm_video_encoder_options encoder_options;
+			{
+				std::lock_guard<std::mutex> lock(encoder_options_mutex_);
+				encoder_options = encoder_options_;
+			}
+			if (!startStreaming(kDefaultVideoSsrc, kDefaultAudioSsrc, kDefaultDataSsrc, encoder_options)) {
 				blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d startStreaming failed after peer connection",
 				     (void *)this, instance_id_);
 			}
@@ -300,199 +310,274 @@ private:
 			     instance_id_, ssrc);
 			return;
 		}
-		FALCONM_LOG_INFO(
-			"FalconM: this=%p uniqueID=%d onDecodedFrame ssrc=%u data=%p type=%d format=%d streaming=%s "
-			"buffer=%p bufferObj=%p width=%d height=%d sampleRate=%d channels=%d bitsPerSample=%d "
-			"pts=%lld dts=%lld fromNodeId=%d toNodeId=%d rotation=%d",
-			(void *)this, instance_id_, ssrc, (void *)d.get(), d->type, d->format,
-			streaming_ ? "true" : "false", (void *)d->buffer.get(), (void *)d->bufferObj.get(), d->width,
-			d->height, d->sampleRate, d->channels, d->bitsPerSample, (long long)d->pts, (long long)d->dts,
-			d->fromNodeId, d->toNodeId, d->rotation);
-		if (d->format == MEDIA_DATA_FORMAT_IMAGE_BUFFER) {
-			if (!d->bufferObj) {
-				blog(LOG_ERROR,
-				     "FalconM: this=%p uniqueID=%d IMAGE_BUFFER decoded frame has null bufferObj, ssrc=%u",
-				     (void *)this, instance_id_, ssrc);
-				return;
-			}
-			CVPixelBufferRef pixel_buffer = (CVPixelBufferRef)d->bufferObj->getObject();
-			if (!pixel_buffer) {
-				blog(LOG_ERROR,
-				     "FalconM: this=%p uniqueID=%d IMAGE_BUFFER GenericObject returned null CVPixelBuffer, ssrc=%u "
-				     "bufferObj=%p",
-				     (void *)this, instance_id_, ssrc, (void *)d->bufferObj.get());
-				return;
-			}
-			const CVReturn lock_result = CVPixelBufferLockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly);
-			if (lock_result != kCVReturnSuccess) {
-				blog(LOG_ERROR,
-				     "FalconM: this=%p uniqueID=%d CVPixelBufferLockBaseAddress failed, ssrc=%u "
-				     "pixelBuffer=%p result=%d",
-				     (void *)this, instance_id_, ssrc, (void *)pixel_buffer, lock_result);
-				return;
-			}
-			obs_source_frame frame = {};
-			frame.width = (uint32_t)CVPixelBufferGetWidth(pixel_buffer);
-			frame.height = (uint32_t)CVPixelBufferGetHeight(pixel_buffer);
-			frame.timestamp = d->pts >= 0 ? (uint64_t)d->pts * 1000 : 0;
-			const OSType pixel_format = CVPixelBufferGetPixelFormatType(pixel_buffer);
-			enum video_colorspace colorspace = VIDEO_CS_709;
-			enum video_range_type range = VIDEO_RANGE_PARTIAL;
-			switch (pixel_format) {
-			case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
-				frame.format = VIDEO_FORMAT_NV12;
-				frame.full_range = false;
-				break;
-			case kCVPixelFormatType_420YpCbCr8BiPlanarFullRange:
-				frame.format = VIDEO_FORMAT_NV12;
-				frame.full_range = true;
-				range = VIDEO_RANGE_FULL;
-				break;
-			default:
-				blog(LOG_WARNING, "FalconM: this=%p uniqueID=%d unsupported CVPixelBuffer format 0x%08x",
-				     (void *)this, instance_id_, (unsigned)pixel_format);
-				CVPixelBufferUnlockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly);
-				return;
-			}
-			CFTypeRef matrix_attachment =
-				CVBufferCopyAttachment(pixel_buffer, kCVImageBufferYCbCrMatrixKey, nullptr);
-			if (matrix_attachment == kCVImageBufferYCbCrMatrix_ITU_R_601_4) {
-				colorspace = VIDEO_CS_601;
-			} else if (matrix_attachment == kCVImageBufferYCbCrMatrix_ITU_R_709_2) {
-				colorspace = VIDEO_CS_709;
-			} else if (matrix_attachment == kCVImageBufferYCbCrMatrix_ITU_R_2020) {
-				colorspace = VIDEO_CS_2100_PQ;
-			}
-			CFTypeRef primaries_attachment =
-				CVBufferCopyAttachment(pixel_buffer, kCVImageBufferColorPrimariesKey, nullptr);
-			if (primaries_attachment == kCVImageBufferColorPrimaries_ITU_R_2020) {
-				colorspace = VIDEO_CS_2100_PQ;
-			}
-			if (matrix_attachment) {
-				CFRelease(matrix_attachment);
-			}
-			if (primaries_attachment) {
-				CFRelease(primaries_attachment);
-			}
-			size_t plane_count = CVPixelBufferGetPlaneCount(pixel_buffer);
-			for (size_t i = 0; i < plane_count && i < MAX_AV_PLANES; i++) {
-				frame.data[i] = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, i);
-				frame.linesize[i] = (uint32_t)CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, i);
-			}
-			video_format_get_parameters_for_format(colorspace, range, frame.format, frame.color_matrix,
-							       frame.color_range_min, frame.color_range_max);
-			if (decoded_cb_) {
-				decoded_cb_(frame);
-			} else {
-				blog(LOG_WARNING,
-				     "FalconM: this=%p uniqueID=%d IMAGE_BUFFER frame dropped because decoded callback is empty, "
-				     "ssrc=%u size=%ux%u",
-				     (void *)this, instance_id_, ssrc, frame.width, frame.height);
-			}
+
+		switch (d->type) {
+		case MEDIA_DATA_TYPE_VIDEO:
+			FALCONM_LOG_INFO(
+				"FalconM: this=%p uniqueID=%d onDecodedVideoFrame ssrc=%u data=%p format=%d "
+				"streaming=%s buffer=%p bufferObj=%p width=%d height=%d pts=%lld dts=%lld "
+				"fromNodeId=%d toNodeId=%d rotation=%d",
+				(void *)this, instance_id_, ssrc, (void *)d.get(), d->format,
+				streaming_ ? "true" : "false", (void *)d->buffer.get(), (void *)d->bufferObj.get(),
+				d->width, d->height, (long long)d->pts, (long long)d->dts, d->fromNodeId, d->toNodeId,
+				d->rotation);
+			processDecodedVideoFrame(ssrc, *d);
+			return;
+		case MEDIA_DATA_TYPE_AUDIO:
+			FALCONM_LOG_INFO(
+				"FalconM: this=%p uniqueID=%d onDecodedAudioFrame ssrc=%u data=%p format=%d "
+				"streaming=%s buffer=%p sampleRate=%d channels=%d bitsPerSample=%d pts=%lld dts=%lld "
+				"fromNodeId=%d toNodeId=%d",
+				(void *)this, instance_id_, ssrc, (void *)d.get(), d->format,
+				streaming_ ? "true" : "false", (void *)d->buffer.get(), d->sampleRate, d->channels,
+				d->bitsPerSample, (long long)d->pts, (long long)d->dts, d->fromNodeId, d->toNodeId);
+			processDecodedAudioFrame(ssrc, *d);
+			return;
+		default:
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d unsupported decoded media type, ssrc=%u type=%d format=%d",
+			     (void *)this, instance_id_, ssrc, d->type, d->format);
+			return;
+		}
+	}
+	void processDecodedVideoFrame(uint32_t ssrc, const MediaData &d)
+	{
+		if (!streaming_) {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d decoded video frame rejected because streaming is false, "
+			     "ssrc=%u format=%d",
+			     (void *)this, instance_id_, ssrc, d.format);
+			return;
+		}
+
+		switch (d.format) {
+		case MEDIA_DATA_FORMAT_IMAGE_BUFFER:
+			processImageBufferVideoFrame(ssrc, d);
+			return;
+		case MEDIA_DATA_FORMAT_NV12:
+		case MEDIA_DATA_FORMAT_YUV420P:
+			processByteBufferVideoFrame(ssrc, d);
+			return;
+		default:
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d unsupported decoded video format, ssrc=%u format=%d",
+			     (void *)this, instance_id_, ssrc, d.format);
+			return;
+		}
+	}
+	void processImageBufferVideoFrame(uint32_t ssrc, const MediaData &d)
+	{
+		if (!d.bufferObj) {
+			blog(LOG_ERROR,
+			     "FalconM: this=%p uniqueID=%d IMAGE_BUFFER decoded frame has null bufferObj, ssrc=%u",
+			     (void *)this, instance_id_, ssrc);
+			return;
+		}
+		CVPixelBufferRef pixel_buffer = (CVPixelBufferRef)d.bufferObj->getObject();
+		if (!pixel_buffer) {
+			blog(LOG_ERROR,
+			     "FalconM: this=%p uniqueID=%d IMAGE_BUFFER GenericObject returned null CVPixelBuffer, ssrc=%u "
+			     "bufferObj=%p",
+			     (void *)this, instance_id_, ssrc, (void *)d.bufferObj.get());
+			return;
+		}
+		const CVReturn lock_result = CVPixelBufferLockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly);
+		if (lock_result != kCVReturnSuccess) {
+			blog(LOG_ERROR,
+			     "FalconM: this=%p uniqueID=%d CVPixelBufferLockBaseAddress failed, ssrc=%u "
+			     "pixelBuffer=%p result=%d",
+			     (void *)this, instance_id_, ssrc, (void *)pixel_buffer, lock_result);
+			return;
+		}
+		obs_source_frame frame = {};
+		frame.width = (uint32_t)CVPixelBufferGetWidth(pixel_buffer);
+		frame.height = (uint32_t)CVPixelBufferGetHeight(pixel_buffer);
+		frame.timestamp = d.pts >= 0 ? (uint64_t)d.pts * 1000 : 0;
+		const OSType pixel_format = CVPixelBufferGetPixelFormatType(pixel_buffer);
+		enum video_colorspace colorspace = VIDEO_CS_709;
+		enum video_range_type range = VIDEO_RANGE_PARTIAL;
+		switch (pixel_format) {
+		case kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange:
+			frame.format = VIDEO_FORMAT_NV12;
+			frame.full_range = false;
+			break;
+		case kCVPixelFormatType_420YpCbCr8BiPlanarFullRange:
+			frame.format = VIDEO_FORMAT_NV12;
+			frame.full_range = true;
+			range = VIDEO_RANGE_FULL;
+			break;
+		default:
+			blog(LOG_WARNING, "FalconM: this=%p uniqueID=%d unsupported CVPixelBuffer format 0x%08x",
+			     (void *)this, instance_id_, (unsigned)pixel_format);
 			CVPixelBufferUnlockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly);
 			return;
 		}
-		if (!d->buffer) {
+		CFTypeRef matrix_attachment = CVBufferCopyAttachment(pixel_buffer, kCVImageBufferYCbCrMatrixKey, nullptr);
+		if (matrix_attachment == kCVImageBufferYCbCrMatrix_ITU_R_601_4) {
+			colorspace = VIDEO_CS_601;
+		} else if (matrix_attachment == kCVImageBufferYCbCrMatrix_ITU_R_709_2) {
+			colorspace = VIDEO_CS_709;
+		} else if (matrix_attachment == kCVImageBufferYCbCrMatrix_ITU_R_2020) {
+			colorspace = VIDEO_CS_2100_PQ;
+		}
+		CFTypeRef primaries_attachment =
+			CVBufferCopyAttachment(pixel_buffer, kCVImageBufferColorPrimariesKey, nullptr);
+		if (primaries_attachment == kCVImageBufferColorPrimaries_ITU_R_2020) {
+			colorspace = VIDEO_CS_2100_PQ;
+		}
+		if (matrix_attachment) {
+			CFRelease(matrix_attachment);
+		}
+		if (primaries_attachment) {
+			CFRelease(primaries_attachment);
+		}
+		size_t plane_count = CVPixelBufferGetPlaneCount(pixel_buffer);
+		for (size_t i = 0; i < plane_count && i < MAX_AV_PLANES; i++) {
+			frame.data[i] = (uint8_t *)CVPixelBufferGetBaseAddressOfPlane(pixel_buffer, i);
+			frame.linesize[i] = (uint32_t)CVPixelBufferGetBytesPerRowOfPlane(pixel_buffer, i);
+		}
+		video_format_get_parameters_for_format(colorspace, range, frame.format, frame.color_matrix,
+					       frame.color_range_min, frame.color_range_max);
+		if (decoded_cb_) {
+			decoded_cb_(frame);
+		} else {
 			blog(LOG_WARNING,
-			     "FalconM: this=%p uniqueID=%d decoded frame rejected because buffer is null, ssrc=%u type=%d "
-			     "format=%d streaming=%s",
-			     (void *)this, instance_id_, ssrc, d->type, d->format, streaming_ ? "true" : "false");
+			     "FalconM: this=%p uniqueID=%d IMAGE_BUFFER frame dropped because decoded callback is empty, "
+			     "ssrc=%u size=%ux%u",
+			     (void *)this, instance_id_, ssrc, frame.width, frame.height);
+		}
+		CVPixelBufferUnlockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly);
+	}
+	void processByteBufferVideoFrame(uint32_t ssrc, const MediaData &d)
+	{
+		if (!d.buffer) {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d decoded video frame rejected because buffer is null, "
+			     "ssrc=%u format=%d",
+			     (void *)this, instance_id_, ssrc, d.format);
 			return;
 		}
-		if (!streaming_) {
-			blog(LOG_WARNING,
-			     "FalconM: this=%p uniqueID=%d decoded frame rejected because streaming is false, ssrc=%u "
-			     "type=%d format=%d buffer=%p",
-			     (void *)this, instance_id_, ssrc, d->type, d->format, (void *)d->buffer.get());
-			return;
-		}
-		uint8_t *base = d->buffer->getData();
-		const int size = d->buffer->getSize();
+		uint8_t *base = d.buffer->getData();
+		const int size = d.buffer->getSize();
 		if (!base) {
 			blog(LOG_WARNING,
-			     "FalconM: this=%p uniqueID=%d decoded frame rejected because buffer data is null, ssrc=%u "
-			     "type=%d format=%d buffer=%p size=%d",
-			     (void *)this, instance_id_, ssrc, d->type, d->format, (void *)d->buffer.get(), size);
+			     "FalconM: this=%p uniqueID=%d decoded video frame rejected because buffer data is null, "
+			     "ssrc=%u format=%d buffer=%p size=%d",
+			     (void *)this, instance_id_, ssrc, d.format, (void *)d.buffer.get(), size);
 			return;
 		}
 		if (size <= 0) {
 			blog(LOG_WARNING,
-			     "FalconM: this=%p uniqueID=%d decoded frame rejected because buffer size is invalid, ssrc=%u "
-			     "type=%d format=%d data=%p size=%d",
-			     (void *)this, instance_id_, ssrc, d->type, d->format, (void *)base, size);
+			     "FalconM: this=%p uniqueID=%d decoded video frame rejected because buffer size is invalid, "
+			     "ssrc=%u format=%d data=%p size=%d",
+			     (void *)this, instance_id_, ssrc, d.format, (void *)base, size);
 			return;
 		}
-		if (d->type == MEDIA_DATA_TYPE_AUDIO && d->format == MEDIA_DATA_FORMAT_PCM_S16) {
-			obs_source_audio a = {};
-			a.data[0] = base;
-			a.samples_per_sec = d->sampleRate > 0 ? (uint32_t)d->sampleRate : 48000;
-			a.speakers = d->channels == 1 ? SPEAKERS_MONO : SPEAKERS_STEREO;
-			a.format = AUDIO_FORMAT_16BIT;
-			a.frames = (uint32_t)(size / (std::max(1, d->channels) * 2));
-			a.timestamp = d->pts >= 0 ? (uint64_t)d->pts * 1000 : 0;
-			if (audio_cb_) {
-				audio_cb_(a);
-			} else {
-				blog(LOG_WARNING,
-				     "FalconM: this=%p uniqueID=%d audio frame dropped because audio callback is empty, ssrc=%u "
-				     "sampleRate=%u channels=%d frames=%u",
-				     (void *)this, instance_id_, ssrc, a.samples_per_sec, d->channels, a.frames);
-			}
-			return;
-		}
-		if (d->type != MEDIA_DATA_TYPE_VIDEO) {
+		if (d.width <= 0 || d.height <= 0) {
 			blog(LOG_WARNING,
-			     "FalconM: this=%p uniqueID=%d decoded frame rejected because media type is not video and is not "
-			     "supported PCM audio, ssrc=%u type=%d format=%d",
-			     (void *)this, instance_id_, ssrc, d->type, d->format);
+			     "FalconM: this=%p uniqueID=%d decoded video frame rejected because dimensions are invalid, "
+			     "ssrc=%u format=%d width=%d height=%d size=%d",
+			     (void *)this, instance_id_, ssrc, d.format, d.width, d.height, size);
 			return;
 		}
-		if (d->width <= 0) {
-			blog(LOG_WARNING,
-			     "FalconM: this=%p uniqueID=%d decoded video frame rejected because width is invalid, ssrc=%u "
-			     "format=%d width=%d height=%d size=%d",
-			     (void *)this, instance_id_, ssrc, d->format, d->width, d->height, size);
-			return;
-		}
-		if (d->height <= 0) {
-			blog(LOG_WARNING,
-			     "FalconM: this=%p uniqueID=%d decoded video frame rejected because height is invalid, ssrc=%u "
-			     "format=%d width=%d height=%d size=%d",
-			     (void *)this, instance_id_, ssrc, d->format, d->width, d->height, size);
-			return;
-		}
-		obs_source_frame f = {};
-		f.width = d->width;
-		f.height = d->height;
-		f.timestamp = d->pts >= 0 ? d->pts * 1000 : 0;
-		if (d->format == MEDIA_DATA_FORMAT_NV12) {
-			f.format = VIDEO_FORMAT_NV12;
-			f.data[0] = base;
-			f.linesize[0] = d->width;
-			f.data[1] = base + d->width * d->height;
-			f.linesize[1] = d->width;
-		} else if (d->format == MEDIA_DATA_FORMAT_YUV420P) {
-			const int y = d->width * d->height;
+
+		obs_source_frame frame = {};
+		frame.width = d.width;
+		frame.height = d.height;
+		frame.timestamp = d.pts >= 0 ? d.pts * 1000 : 0;
+		switch (d.format) {
+		case MEDIA_DATA_FORMAT_NV12:
+			frame.format = VIDEO_FORMAT_NV12;
+			frame.data[0] = base;
+			frame.linesize[0] = d.width;
+			frame.data[1] = base + d.width * d.height;
+			frame.linesize[1] = d.width;
+			break;
+		case MEDIA_DATA_FORMAT_YUV420P: {
+			const int y = d.width * d.height;
 			const int uv = y / 4;
-			f.format = VIDEO_FORMAT_I420;
-			f.data[0] = base;
-			f.linesize[0] = d->width;
-			f.data[1] = base + y;
-			f.linesize[1] = d->width / 2;
-			f.data[2] = base + y + uv;
-			f.linesize[2] = d->width / 2;
-		} else {
-			blog(LOG_WARNING, "FalconM: this=%p uniqueID=%d unsupported decoded format %d", (void *)this,
-			     instance_id_, d->format);
+			frame.format = VIDEO_FORMAT_I420;
+			frame.data[0] = base;
+			frame.linesize[0] = d.width;
+			frame.data[1] = base + y;
+			frame.linesize[1] = d.width / 2;
+			frame.data[2] = base + y + uv;
+			frame.linesize[2] = d.width / 2;
+			break;
+		}
+		default:
 			return;
 		}
 		if (decoded_cb_) {
-			decoded_cb_(f);
+			decoded_cb_(frame);
 		} else {
 			blog(LOG_WARNING,
 			     "FalconM: this=%p uniqueID=%d video frame dropped because decoded callback is empty, ssrc=%u "
 			     "format=%d size=%dx%d",
-			     (void *)this, instance_id_, ssrc, d->format, d->width, d->height);
+			     (void *)this, instance_id_, ssrc, d.format, d.width, d.height);
+		}
+	}
+	void processDecodedAudioFrame(uint32_t ssrc, const MediaData &d)
+	{
+		if (!streaming_) {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d decoded audio frame rejected because streaming is false, "
+			     "ssrc=%u format=%d",
+			     (void *)this, instance_id_, ssrc, d.format);
+			return;
+		}
+
+		switch (d.format) {
+		case MEDIA_DATA_FORMAT_PCM_S16:
+			processPcmAudioFrame(ssrc, d);
+			return;
+		default:
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d unsupported decoded audio format, ssrc=%u format=%d",
+			     (void *)this, instance_id_, ssrc, d.format);
+			return;
+		}
+	}
+	void processPcmAudioFrame(uint32_t ssrc, const MediaData &d)
+	{
+		if (!d.buffer) {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d decoded audio frame rejected because buffer is null, "
+			     "ssrc=%u format=%d",
+			     (void *)this, instance_id_, ssrc, d.format);
+			return;
+		}
+		uint8_t *base = d.buffer->getData();
+		const int size = d.buffer->getSize();
+		if (!base) {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d decoded audio frame rejected because buffer data is null, "
+			     "ssrc=%u format=%d buffer=%p size=%d",
+			     (void *)this, instance_id_, ssrc, d.format, (void *)d.buffer.get(), size);
+			return;
+		}
+		if (size <= 0) {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d decoded audio frame rejected because buffer size is invalid, "
+			     "ssrc=%u format=%d data=%p size=%d",
+			     (void *)this, instance_id_, ssrc, d.format, (void *)base, size);
+			return;
+		}
+
+		obs_source_audio audio = {};
+		audio.data[0] = base;
+		audio.samples_per_sec = d.sampleRate > 0 ? (uint32_t)d.sampleRate : 48000;
+		audio.speakers = d.channels == 1 ? SPEAKERS_MONO : SPEAKERS_STEREO;
+		audio.format = AUDIO_FORMAT_16BIT;
+		audio.frames = (uint32_t)(size / (std::max(1, d.channels) * 2));
+		audio.timestamp = d.pts >= 0 ? (uint64_t)d.pts * 1000 : 0;
+		if (audio_cb_) {
+			audio_cb_(audio);
+		} else {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d audio frame dropped because audio callback is empty, ssrc=%u "
+			     "sampleRate=%u channels=%d frames=%u",
+			     (void *)this, instance_id_, ssrc, audio.samples_per_sec, d.channels, audio.frames);
 		}
 	}
 	void onRTPMessage(uint32_t ssrc, std::shared_ptr<MediaData> data) override
@@ -576,7 +661,19 @@ private:
 		/* Wires up the SDK-internal decode pipeline (VideoDecoderIos/AudioDecoderIos);
 		 * no surface/renderer is created on mac, only on Android. */
 		if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO) {
-			session_->addSurface(stream.ssrc, rtcsdk::VideoRenderParams());
+			rtcsdk::VideoRenderParams video_render_params;
+			{
+				std::lock_guard<std::mutex> lock(encoder_options_mutex_);
+				video_render_params.liveOutputWidth =
+					encoder_options_.width.value_or(video_render_params.liveOutputWidth);
+				video_render_params.liveOutputHeight =
+					encoder_options_.height.value_or(video_render_params.liveOutputHeight);
+			}
+			FALCONM_LOG_INFO(
+				"FalconM: this=%p uniqueID=%d [socket_source] add video surface ssrc=%u output=%dx%d",
+				(void *)this, instance_id_, stream.ssrc, video_render_params.liveOutputWidth,
+				video_render_params.liveOutputHeight);
+			session_->addSurface(stream.ssrc, video_render_params);
 		} else if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_AUDIO) {
 			session_->addRemoteAudioPlayer(stream.ssrc);
 		}
@@ -617,6 +714,8 @@ private:
 	std::string device_id_;
 	std::string broker_address_;
 	std::string controller_id_ = "uuid";
+	std::mutex encoder_options_mutex_;
+	falconm_video_encoder_options encoder_options_;
 	std::unordered_map<std::string, falcon_event_factory> event_factories_;
 	std::atomic<bool> connected_{false};
 	std::atomic<bool> streaming_{false};

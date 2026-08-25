@@ -16,6 +16,37 @@
 namespace xbotgo {
 
 static constexpr uint16_t DEFAULT_MQTT_PORT = 1883;
+static constexpr char STREAMING_RESOLUTION_SETTING[] = "streaming_resolution";
+
+static StreamingResolution get_streaming_resolution(obs_data_t *settings)
+{
+	const auto resolution =
+		static_cast<StreamingResolution>(obs_data_get_int(settings, STREAMING_RESOLUTION_SETTING));
+	switch (resolution) {
+	case StreamingResolution::P1080:
+	case StreamingResolution::P1080_60:
+	case StreamingResolution::K4:
+		return resolution;
+	}
+
+	blog(LOG_WARNING, "FalconM: invalid streaming resolution=%lld; falling back to 4K",
+	     obs_data_get_int(settings, STREAMING_RESOLUTION_SETTING));
+	return StreamingResolution::K4;
+}
+
+static falconm_video_encoder_options get_encoder_options(StreamingResolution resolution)
+{
+	switch (resolution) {
+	case StreamingResolution::P1080:
+		return {1920, 1080, 30, 10 * 1000 * 1000};
+	case StreamingResolution::P1080_60:
+		return {1920, 1080, 60, 10 * 1000 * 1000};
+	case StreamingResolution::K4:
+		return {3840, 2160, 30, 52 * 1000 * 1000};
+	}
+
+	return {3840, 2160, 30, 52 * 1000 * 1000};
+}
 
 static void log_source_callback_thread(const char *callback_name)
 {
@@ -69,6 +100,7 @@ static void falconm_control_worker(falconm_source *d)
 		std::string broker_address;
 		std::string device_id;
 		uint16_t broker_port = DEFAULT_MQTT_PORT;
+		StreamingResolution streaming_resolution = StreamingResolution::K4;
 		uint64_t request_serial = 0;
 
 		{
@@ -84,6 +116,7 @@ static void falconm_control_worker(falconm_source *d)
 			broker_address = d->broker_address;
 			device_id = d->device_id;
 			broker_port = d->broker_port;
+			streaming_resolution = d->streaming_resolution;
 			request_serial = d->request_serial;
 			handled_serial = request_serial;
 		}
@@ -106,7 +139,8 @@ static void falconm_control_worker(falconm_source *d)
 		}
 
 		d->stopping = false;
-		if (!d->stream->connect(device_id, broker_address, broker_port)) {
+		if (!d->stream->connect(device_id, broker_address, broker_port,
+					get_encoder_options(streaming_resolution))) {
 			blog(LOG_ERROR, "FalconM: asynchronous connect failed for device '%s'", device_id.c_str());
 			d->stopping = true;
 			continue;
@@ -142,6 +176,7 @@ static void *falconm_create(obs_data_t *s, obs_source_t *source)
 	d->broker_address = obs_data_get_string(s, "broker_address");
 	d->device_id = obs_data_get_string(s, "device_id");
 	d->broker_port = get_broker_port(s);
+	d->streaming_resolution = get_streaming_resolution(s);
 	d->stream->setDecodedFrameCallback([d](const obs_source_frame &f) {
 		output_video(d, f);
 	});
@@ -185,19 +220,23 @@ static void falconm_update(void *p, obs_data_t *s)
 		const std::string broker_address = obs_data_get_string(s, "broker_address");
 		const std::string device_id = obs_data_get_string(s, "device_id");
 		const uint16_t broker_port = get_broker_port(s);
+		const StreamingResolution streaming_resolution = get_streaming_resolution(s);
 		const bool connection_changed = d->broker_address != broker_address || d->device_id != device_id ||
-					 d->broker_port != broker_port;
+					 d->broker_port != broker_port || d->streaming_resolution != streaming_resolution;
 
 		FALCONM_LOG_INFO(
 			"FalconM: falconm_update source_data=%p settings=%p settings.broker_address='%s' "
 			"settings.device_id='%s' settings.broker_port=%lld current.broker_address='%s' "
-			"current.device_id='%s' current.broker_port=%u",
+			"current.device_id='%s' current.broker_port=%u settings.streaming_resolution=%lld "
+			"current.streaming_resolution=%lld",
 			p, (void *)s, broker_address.c_str(), device_id.c_str(), obs_data_get_int(s, "broker_port"),
-			d->broker_address.c_str(), d->device_id.c_str(), d->broker_port);
+			d->broker_address.c_str(), d->device_id.c_str(), d->broker_port,
+			obs_data_get_int(s, STREAMING_RESOLUTION_SETTING), static_cast<long long>(d->streaming_resolution));
 
 		d->broker_address = broker_address;
 		d->device_id = device_id;
 		d->broker_port = broker_port;
+		d->streaming_resolution = streaming_resolution;
 		if (connection_changed) {
 			d->stopping = true;
 			++d->request_serial;
@@ -733,6 +772,15 @@ static obs_properties_t *falconm_properties(void *data)
 	obs_properties_add_text(p, "device_id", obs_module_text("DeviceId"), OBS_TEXT_DEFAULT);
 	obs_properties_add_int(p, "broker_port", obs_module_text("MqttPort"), 1, std::numeric_limits<uint16_t>::max(),
 			       1);
+	obs_property_t *resolution =
+		obs_properties_add_list(p, STREAMING_RESOLUTION_SETTING, obs_module_text("StreamingResolution"),
+					OBS_COMBO_TYPE_LIST, OBS_COMBO_FORMAT_INT);
+	obs_property_list_add_int(resolution, obs_module_text("StreamingResolution1080P"),
+				  static_cast<long long>(StreamingResolution::P1080));
+	obs_property_list_add_int(resolution, obs_module_text("StreamingResolution1080P60"),
+				  static_cast<long long>(StreamingResolution::P1080_60));
+	obs_property_list_add_int(resolution, obs_module_text("StreamingResolution4K"),
+				  static_cast<long long>(StreamingResolution::K4));
 	obs_properties_add_text(p, "device_version", obs_module_text("FirmwareVersion"), OBS_TEXT_INFO);
 	obs_properties_add_text(p, "device_serial_number", obs_module_text("SerialNumber"), OBS_TEXT_INFO);
 	return p;
@@ -743,6 +791,7 @@ static void falconm_defaults(obs_data_t *s)
 	obs_data_set_default_string(s, "broker_address", "");
 	obs_data_set_default_string(s, "device_id", "");
 	obs_data_set_default_int(s, "broker_port", DEFAULT_MQTT_PORT);
+	obs_data_set_default_int(s, STREAMING_RESOLUTION_SETTING, static_cast<long long>(StreamingResolution::K4));
 	FALCONM_LOG_INFO("FalconM: falconm_defaults settings=%p broker_address='%s' device_id='%s' broker_port=%lld",
 			 (void *)s, obs_data_get_string(s, "broker_address"), obs_data_get_string(s, "device_id"),
 			 obs_data_get_int(s, "broker_port"));
