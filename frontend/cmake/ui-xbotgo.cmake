@@ -1,6 +1,8 @@
 target_sources(
         obs-studio
         PRIVATE
+        xbotgo/components/XBotGoComboBoxControl.cpp
+        xbotgo/components/XBotGoComboBoxControl.hpp
         xbotgo/components/XBotGoSliderControl.cpp
         xbotgo/components/XBotGoSliderControl.hpp
         xbotgo/dialogs/XBotGoLiveStreamConfigDialog.cpp
