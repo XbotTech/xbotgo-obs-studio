@@ -46,6 +46,37 @@ static void test_ava_parses_success_and_rejects_invalid_payloads()
 	assert(!event.parse(nullptr, 0));
 }
 
+static void test_cwr_parses_hall_calibration_status()
+{
+	HallCalibrationStatusEvent event;
+	for (uint8_t value = 0; value <= 3; ++value) {
+		assert(event.parse(&value, 1));
+		assert(event.status() == static_cast<falconm_hall_calibration_status>(value));
+	}
+	const uint8_t invalid[] = {4};
+	const uint8_t too_long[] = {1, 2};
+	assert(!event.parse(invalid, sizeof(invalid)));
+	assert(!event.parse(too_long, sizeof(too_long)));
+	assert(!event.parse(nullptr, 0));
+}
+
+static void test_dca_parses_current_zoom()
+{
+	CurrentZoomEvent event;
+	assert(event.topic() == "DCA");
+	for (const uint8_t value : {uint8_t(10), uint8_t(20), uint8_t(30)}) {
+		assert(event.parse(&value, 1));
+		assert(event.value() == value);
+	}
+	const uint8_t too_small[] = {9};
+	const uint8_t too_large[] = {31};
+	const uint8_t too_long[] = {10, 20};
+	assert(!event.parse(too_small, sizeof(too_small)));
+	assert(!event.parse(too_large, sizeof(too_large)));
+	assert(!event.parse(too_long, sizeof(too_long)));
+	assert(!event.parse(nullptr, 0));
+}
+
 static void test_bxa_parses_signed_motor_angles()
 {
 	const std::vector<uint8_t> payload = {
@@ -113,6 +144,19 @@ static void test_request_encoding()
 	assert(anr.topic() == "ANR" && anr.encodePayload() == std::vector<uint8_t>({0}));
 	const auto axr = QueryDefaultCaptureParametersRequest{};
 	assert(axr.topic() == "AXR" && axr.encodePayload() == std::vector<uint8_t>({0}));
+	const auto cur = QueryHallCalibrationRequest{};
+	assert(cur.topic() == "CUR" && cur.encodePayload() == std::vector<uint8_t>({0}));
+	const auto cvr = StartHallCalibrationRequest{};
+	assert(cvr.topic() == "CVR" && cvr.encodePayload() == std::vector<uint8_t>({0}));
+	const auto dbr_zoom_in = ManualZoomRequest{falconm_zoom_type::relative, 1};
+	assert(dbr_zoom_in.topic() == "DBR" && dbr_zoom_in.encodePayload() == std::vector<uint8_t>({0, 1}));
+	const auto dbr_zoom_out = ManualZoomRequest{falconm_zoom_type::relative, -1};
+	assert(dbr_zoom_out.topic() == "DBR" &&
+	       dbr_zoom_out.encodePayload() == std::vector<uint8_t>({0, 0xff}));
+	const auto dbr_absolute = ManualZoomRequest{falconm_zoom_type::absolute, 3};
+	assert(dbr_absolute.topic() == "DBR" && dbr_absolute.encodePayload() == std::vector<uint8_t>({1, 3}));
+	const auto dcr = QueryCurrentZoomRequest{};
+	assert(dcr.topic() == "DCR" && dcr.encodePayload() == std::vector<uint8_t>({0}));
 
 	falconm_capture_parameters settings;
 	settings.watermark = true;
@@ -259,6 +303,8 @@ int main()
 	test_bpa_parses_big_endian_modes();
 	test_bpa_rejects_short_payload();
 	test_ava_parses_success_and_rejects_invalid_payloads();
+	test_cwr_parses_hall_calibration_status();
+	test_dca_parses_current_zoom();
 	test_bxa_parses_signed_motor_angles();
 	test_dfa_parses_limits_and_rejects_short_payloads();
 	test_basketball_mode_filter();

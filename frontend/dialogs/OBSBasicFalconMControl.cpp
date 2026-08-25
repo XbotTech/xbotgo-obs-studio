@@ -6,6 +6,7 @@
 #include <obs.h>
 #include <callback/calldata.h>
 #include <qt-wrappers.hpp>
+#include <xbotgo/components/XBotGoSliderControl.hpp>
 
 #include "../../plugins/xbotogo-falconM/falconm-protocol.hpp"
 
@@ -184,28 +185,47 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	modeSelector = new QComboBox(this);
 	modeRefresh = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Refresh"), this);
 	parametersRefresh = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Refresh"), this);
-	parametersApply = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Apply"), this);
-	parametersApply->setEnabled(false);
 	parametersStatus = new QLabel(this);
 	parametersMode = new QLabel(this);
 	parametersResolution = new QLabel(this);
 	parametersResolutionId = new QLabel(this);
 	parametersWatermark = new QLabel(this);
 	parametersMute = new QLabel(this);
-	parametersAutoZoom = new QLabel(this);
+	parametersAutoZoom = new QCheckBox(this);
+	parametersAutoZoom->setEnabled(false);
 	parametersAutoTracking = new QCheckBox(this);
-	parametersAngleRange = new QLabel(this);
+	parametersAutoTracking->setEnabled(false);
+	parametersAngleRange = new XBotGo::SliderControl(this);
+	parametersAngleRange->setTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAngleRange"));
+	parametersAngleRange->setRange(60, 150);
+	parametersAngleRange->setSingleStep(1);
+	parametersAngleRange->setValueFormatter([](int value) { return QStringLiteral("%1°").arg(value); });
+	parametersAngleRange->setEnabled(false);
 	parametersAccelSpeed = new QLabel(this);
 	parametersCountdown = new QLabel(this);
 	parametersFlicker = new QLabel(this);
 	parametersSupportedResolutions = new QLabel(this);
 	parametersSupportedResolutions->setWordWrap(true);
+	manualZoomSlider = new XBotGo::SliderControl(this);
+	manualZoomSlider->setTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ManualZoom"));
+	manualZoomSlider->setRange(10, 30);
+	manualZoomSlider->setSingleStep(1);
+	manualZoomSlider->setValueFormatter(
+		[](int value) { return QStringLiteral("%1x").arg(value / 10.0, 0, 'f', 1); });
+	manualZoomSlider->setEnabled(false);
+	manualZoomStatus = new QLabel(this);
 	connection->setText(QTStr(obs_source_active(source) ? "Basic.MainMenu.XBotGo.DeviceManagement.Active"
 							    : "Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
 
 	angles = new QLabel(this);
 	buzzerLongButton = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.LongBeep"), this);
 	buzzerStatus = new QLabel(this);
+	hallCalibrationStatus = new QLabel(this);
+	hallCalibrationRefresh = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Refresh"), this);
+	hallCalibrationStart =
+		new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationStart"), this);
+	hallCalibrationRefresh->setEnabled(false);
+	hallCalibrationStart->setEnabled(false);
 	auto *grid = new QGridLayout;
 	const auto addButton = [this, grid](const QString &label, int row, int col, int direction) {
 		auto *button = new QPushButton(label, this);
@@ -239,11 +259,12 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 			       parametersResolutionId);
 	parametersForm->addRow(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterWatermark"), parametersWatermark);
 	parametersForm->addRow(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterMute"), parametersMute);
-	parametersForm->addRow(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAutoZoom"), parametersAutoZoom);
 	parametersForm->addRow(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAutoTracking"),
 			       parametersAutoTracking);
-	parametersForm->addRow(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAngleRange"),
-			       parametersAngleRange);
+	parametersForm->addRow(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAutoZoom"), parametersAutoZoom);
+	parametersForm->addRow(manualZoomSlider);
+	parametersForm->addRow(manualZoomStatus);
+	parametersForm->addRow(parametersAngleRange);
 	parametersForm->addRow(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAccelSpeed"),
 			       parametersAccelSpeed);
 	parametersForm->addRow(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterCountdown"), parametersCountdown);
@@ -252,7 +273,6 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 			       parametersSupportedResolutions);
 	parametersLayout->addLayout(parametersForm);
 	auto *parametersButtons = new QHBoxLayout;
-	parametersButtons->addWidget(parametersApply);
 	parametersButtons->addWidget(parametersRefresh);
 	parametersButtons->addStretch();
 	parametersLayout->addLayout(parametersButtons);
@@ -263,12 +283,35 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	buzzerLayout->addWidget(buzzerLongButton);
 	buzzerLayout->addWidget(buzzerStatus, 1);
 	layout->addLayout(buzzerLayout);
+	auto *hallCalibrationLayout = new QHBoxLayout;
+	hallCalibrationLayout->addWidget(
+		new QLabel(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibration"), this));
+	hallCalibrationLayout->addWidget(hallCalibrationStatus, 1);
+	hallCalibrationLayout->addWidget(hallCalibrationStart);
+	hallCalibrationLayout->addWidget(hallCalibrationRefresh);
+	layout->addLayout(hallCalibrationLayout);
 	connect(modeRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryModes);
 	connect(parametersRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryCaptureParameters);
-	connect(parametersApply, &QPushButton::clicked, this, &OBSBasicFalconMControl::ApplyCaptureParameters);
+	connect(parametersAutoZoom, &QCheckBox::toggled, this, &OBSBasicFalconMControl::ApplyAutoZoom);
+	connect(parametersAutoTracking, &QCheckBox::toggled, this, &OBSBasicFalconMControl::ApplyAutoTracking);
+	connect(parametersAngleRange, &XBotGo::SliderControl::sliderReleased, this,
+		&OBSBasicFalconMControl::ApplyAngleRange);
 	connect(modeSelector, qOverload<int>(&QComboBox::currentIndexChanged), this,
 		&OBSBasicFalconMControl::SelectMode);
 	connect(buzzerLongButton, &QPushButton::clicked, this, [this] { SendBuzzerMode(3); });
+	connect(hallCalibrationRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryHallCalibration);
+	connect(hallCalibrationStart, &QPushButton::clicked, this, &OBSBasicFalconMControl::StartHallCalibration);
+	connect(manualZoomSlider, &XBotGo::SliderControl::valueChanged, this,
+		&OBSBasicFalconMControl::ManualZoomValueChanged);
+	connect(manualZoomSlider, &XBotGo::SliderControl::sliderPressed, this, [this] {
+		manualZoomDragging = true;
+		manualZoomCommandValue = manualZoomSlider->value();
+	});
+	connect(manualZoomSlider, &XBotGo::SliderControl::sliderReleased, this, [this] {
+		manualZoomDragging = false;
+		manualZoomQueryDebounce->stop();
+		QueryCurrentZoom();
+	});
 
 	poller = new QTimer(this);
 	connect(poller, &QTimer::timeout, this, &OBSBasicFalconMControl::Refresh);
@@ -286,9 +329,33 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	parametersTimeout->setInterval(5000);
 	connect(parametersTimeout, &QTimer::timeout, this, [this] {
 		parametersRefresh->setEnabled(obs_source_active(source));
-		parametersApply->setEnabled(false);
+		parametersAutoZoom->setEnabled(false);
+		parametersAutoTracking->setEnabled(false);
+		parametersAngleRange->setEnabled(false);
 		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersQueryFailed"));
 	});
+	hallCalibrationTimeout = new QTimer(this);
+	hallCalibrationTimeout->setSingleShot(true);
+	hallCalibrationTimeout->setInterval(5000);
+	connect(hallCalibrationTimeout, &QTimer::timeout, this, [this] {
+		const bool active = source && obs_source_active(source);
+		const bool calibrating = currentHallCalibrationStatus ==
+			static_cast<int>(xbotgo::falconm_hall_calibration_status::calibrating);
+		hallCalibrationRefresh->setEnabled(active);
+		hallCalibrationStart->setEnabled(active && !calibrating);
+		hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationTimeout"));
+	});
+	manualZoomTimeout = new QTimer(this);
+	manualZoomTimeout->setSingleShot(true);
+	manualZoomTimeout->setInterval(5000);
+	connect(manualZoomTimeout, &QTimer::timeout, this, [this] {
+		manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ManualZoomQueryFailed"));
+		UpdateManualZoomEnabled();
+	});
+	manualZoomQueryDebounce = new QTimer(this);
+	manualZoomQueryDebounce->setSingleShot(true);
+	manualZoomQueryDebounce->setInterval(250);
+	connect(manualZoomQueryDebounce, &QTimer::timeout, this, &OBSBasicFalconMControl::QueryCurrentZoom);
 	Refresh();
 }
 
@@ -325,6 +392,266 @@ void OBSBasicFalconMControl::SendBuzzerMode(int mode)
 	calldata_free(&cd);
 	buzzerStatus->setText(QTStr(success ? "Basic.MainMenu.XBotGo.DeviceManagement.BuzzerSent"
 					     : "Basic.MainMenu.XBotGo.DeviceManagement.BuzzerSendFailed"));
+}
+
+void OBSBasicFalconMControl::QueryHallCalibration()
+{
+	if (!source || !obs_source_active(source)) {
+		hallCalibrationRefresh->setEnabled(false);
+		hallCalibrationStart->setEnabled(false);
+		hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		return;
+	}
+
+	calldata_t state;
+	calldata_init(&state);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_hall_calibration", &state);
+	long long sequence = 0;
+	calldata_get_int(&state, "sequence", &sequence);
+	calldata_free(&state);
+
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "query_hall_calibration", &cd);
+	bool success = false;
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	if (!success) {
+		hallCalibrationStatus->setText(
+			QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationQueryFailed"));
+		hallCalibrationRefresh->setEnabled(true);
+		return;
+	}
+
+	hallCalibrationQuerySequence = static_cast<uint64_t>(sequence);
+	hallCalibrationRefresh->setEnabled(false);
+	hallCalibrationStart->setEnabled(false);
+	hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationLoading"));
+	hallCalibrationTimeout->start();
+}
+
+void OBSBasicFalconMControl::StartHallCalibration()
+{
+	if (!source || !obs_source_active(source)) {
+		return;
+	}
+
+	calldata_t state;
+	calldata_init(&state);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_hall_calibration", &state);
+	long long sequence = 0;
+	calldata_get_int(&state, "sequence", &sequence);
+	calldata_free(&state);
+
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "start_hall_calibration", &cd);
+	bool success = false;
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	if (!success) {
+		hallCalibrationStatus->setText(
+			QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationStartFailed"));
+		return;
+	}
+
+	hallCalibrationQuerySequence = static_cast<uint64_t>(sequence);
+	hallCalibrationRefresh->setEnabled(false);
+	hallCalibrationStart->setEnabled(false);
+	hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationStarting"));
+	hallCalibrationTimeout->start();
+}
+
+void OBSBasicFalconMControl::UpdateHallCalibration()
+{
+	if (!source || !obs_source_active(source)) {
+		return;
+	}
+
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_hall_calibration", &cd);
+	long long sequence = 0, status = -1;
+	calldata_get_int(&cd, "sequence", &sequence);
+	calldata_get_int(&cd, "status", &status);
+	calldata_free(&cd);
+	if (sequence <= 0 || static_cast<uint64_t>(sequence) <= hallCalibrationQuerySequence ||
+	    static_cast<uint64_t>(sequence) == displayedHallCalibrationSequence) {
+		return;
+	}
+
+	QString statusText;
+	switch (static_cast<xbotgo::falconm_hall_calibration_status>(status)) {
+	case xbotgo::falconm_hall_calibration_status::uncalibrated:
+		statusText = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationUncalibrated");
+		break;
+	case xbotgo::falconm_hall_calibration_status::calibrating:
+		statusText = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationCalibrating");
+		break;
+	case xbotgo::falconm_hall_calibration_status::succeeded:
+		statusText = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationSucceeded");
+		break;
+	case xbotgo::falconm_hall_calibration_status::failed:
+		statusText = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationFailed");
+		break;
+	default:
+		return;
+	}
+
+	currentHallCalibrationStatus = static_cast<int>(status);
+	displayedHallCalibrationSequence = static_cast<uint64_t>(sequence);
+	hallCalibrationTimeout->stop();
+	hallCalibrationStatus->setText(statusText);
+	hallCalibrationRefresh->setEnabled(true);
+	hallCalibrationStart->setEnabled(
+		status != static_cast<int>(xbotgo::falconm_hall_calibration_status::calibrating));
+}
+
+void OBSBasicFalconMControl::QueryCurrentZoom()
+{
+	if (!source || !obs_source_active(source)) {
+		manualZoomSlider->setEnabled(false);
+		manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		return;
+	}
+
+	calldata_t state;
+	calldata_init(&state);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_current_zoom", &state);
+	long long sequence = 0;
+	calldata_get_int(&state, "sequence", &sequence);
+	calldata_free(&state);
+
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "query_current_zoom", &cd);
+	bool success = false;
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	if (!success) {
+		manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ManualZoomQueryFailed"));
+		UpdateManualZoomEnabled();
+		return;
+	}
+
+	manualZoomQuerySequence = static_cast<uint64_t>(sequence);
+	manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ManualZoomLoading"));
+	manualZoomTimeout->start();
+	UpdateManualZoomEnabled();
+}
+
+void OBSBasicFalconMControl::UpdateCurrentZoom()
+{
+	if (!source || !obs_source_active(source)) {
+		return;
+	}
+
+	calldata_t cd;
+	calldata_init(&cd);
+	proc_handler_call(obs_source_get_proc_handler(source), "get_current_zoom", &cd);
+	long long sequence = 0, value = 0;
+	calldata_get_int(&cd, "sequence", &sequence);
+	calldata_get_int(&cd, "value", &value);
+	calldata_free(&cd);
+	if (sequence <= 0 || value < 10 || value > 30 ||
+	    static_cast<uint64_t>(sequence) <= manualZoomQuerySequence ||
+	    static_cast<uint64_t>(sequence) == displayedManualZoomSequence) {
+		return;
+	}
+
+	currentManualZoom = static_cast<int>(value);
+	hasCurrentManualZoom = true;
+	displayedManualZoomSequence = static_cast<uint64_t>(sequence);
+	manualZoomTimeout->stop();
+	if (!manualZoomDragging) {
+		const QSignalBlocker blocker(manualZoomSlider);
+		manualZoomSlider->setValue(currentManualZoom);
+		manualZoomCommandValue = currentManualZoom;
+	}
+	manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ManualZoomReady"));
+	UpdateManualZoomEnabled();
+}
+
+bool OBSBasicFalconMControl::DisableAutoZoomForManualControl()
+{
+	if (!parametersAutoZoom->isChecked()) {
+		return true;
+	}
+	if (!hasConfirmedCaptureParameters) {
+		manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ManualZoomUnavailable"));
+		return false;
+	}
+
+	calldata_t cd;
+	calldata_init(&cd);
+	calldata_set_bool(&cd, "auto_zoom", false);
+	calldata_set_bool(&cd, "auto_tracking", parametersAutoTracking->isChecked());
+	calldata_set_int(&cd, "angle_range", parametersAngleRange->value());
+	proc_handler_call(obs_source_get_proc_handler(source), "set_capture_zoom_tracking_and_angle_range", &cd);
+	bool success = false;
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	if (!success) {
+		manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ManualZoomAutoDisableFailed"));
+		return false;
+	}
+
+	const QSignalBlocker blocker(parametersAutoZoom);
+	parametersAutoZoom->setChecked(false);
+	confirmedAutoZoom = false;
+	confirmedAutoTracking = parametersAutoTracking->isChecked();
+	confirmedAngleRange = parametersAngleRange->value();
+	UpdateManualZoomEnabled();
+	return true;
+}
+
+void OBSBasicFalconMControl::ManualZoomValueChanged(int value)
+{
+	if (!source || !obs_source_active(source) || !hasCurrentManualZoom || !hasConfirmedCaptureParameters ||
+	    value < 10 || value > 30 || value == manualZoomCommandValue) {
+		return;
+	}
+	if (!DisableAutoZoomForManualControl()) {
+		const QSignalBlocker blocker(manualZoomSlider);
+		manualZoomSlider->setValue(manualZoomCommandValue);
+		return;
+	}
+
+	const int direction = value > manualZoomCommandValue ? 1 : -1;
+	bool success = true;
+	while (manualZoomCommandValue != value) {
+		calldata_t cd;
+		calldata_init(&cd);
+		calldata_set_int(&cd, "type", static_cast<int>(xbotgo::falconm_zoom_type::relative));
+		calldata_set_int(&cd, "value", direction);
+		proc_handler_call(obs_source_get_proc_handler(source), "send_manual_zoom", &cd);
+		calldata_get_bool(&cd, "success", &success);
+		calldata_free(&cd);
+		if (!success) {
+			break;
+		}
+		manualZoomCommandValue += direction;
+	}
+
+	if (!success) {
+		const QSignalBlocker blocker(manualZoomSlider);
+		manualZoomSlider->setValue(manualZoomCommandValue);
+		manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ManualZoomSendFailed"));
+		QueryCurrentZoom();
+		return;
+	}
+
+	manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ManualZoomAdjusting"));
+	if (!manualZoomDragging) {
+		manualZoomQueryDebounce->start();
+	}
+}
+
+void OBSBasicFalconMControl::UpdateManualZoomEnabled()
+{
+	const bool active = source && obs_source_active(source);
+	manualZoomSlider->setEnabled(active && hasCurrentManualZoom && hasConfirmedCaptureParameters &&
+				     !parametersAutoZoom->isChecked());
 }
 
 void OBSBasicFalconMControl::QueryModes()
@@ -364,7 +691,9 @@ void OBSBasicFalconMControl::QueryCaptureParameters()
 {
 	if (!source || !obs_source_active(source)) {
 		parametersRefresh->setEnabled(false);
-		parametersApply->setEnabled(false);
+		parametersAutoZoom->setEnabled(false);
+		parametersAutoTracking->setEnabled(false);
+		parametersAngleRange->setEnabled(false);
 		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
 		return;
 	}
@@ -389,25 +718,83 @@ void OBSBasicFalconMControl::QueryCaptureParameters()
 		return;
 	}
 	parametersRefresh->setEnabled(false);
-	parametersApply->setEnabled(false);
+	parametersAutoZoom->setEnabled(false);
+	parametersAutoTracking->setEnabled(false);
+	parametersAngleRange->setEnabled(false);
 	parametersTimeout->start();
 	parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersLoading"));
 }
 
-void OBSBasicFalconMControl::ApplyCaptureParameters()
+void OBSBasicFalconMControl::ApplyAutoZoom(bool checked)
 {
-	if (!source || !obs_source_active(source)) {
-		parametersApply->setEnabled(false);
-		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+	if (!source || !obs_source_active(source) || !hasConfirmedCaptureParameters || checked == confirmedAutoZoom) {
 		return;
 	}
+
 	calldata_t cd;
 	calldata_init(&cd);
-	calldata_set_bool(&cd, "auto_tracking", parametersAutoTracking->isChecked());
+	calldata_set_bool(&cd, "auto_zoom", checked);
+	proc_handler_call(obs_source_get_proc_handler(source), "set_capture_auto_zoom", &cd);
+	bool success = false;
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	if (success) {
+		confirmedAutoZoom = checked;
+	} else {
+		const QSignalBlocker blocker(parametersAutoZoom);
+		parametersAutoZoom->setChecked(confirmedAutoZoom);
+	}
+	UpdateManualZoomEnabled();
+	parametersStatus->setText(
+		QTStr(success ? "Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersApplied"
+			      : "Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersApplyFailed"));
+}
+
+void OBSBasicFalconMControl::ApplyAutoTracking(bool checked)
+{
+	if (!source || !obs_source_active(source) || !hasConfirmedCaptureParameters ||
+	    checked == confirmedAutoTracking) {
+		return;
+	}
+
+	calldata_t cd;
+	calldata_init(&cd);
+	calldata_set_bool(&cd, "auto_tracking", checked);
 	proc_handler_call(obs_source_get_proc_handler(source), "set_capture_auto_tracking", &cd);
 	bool success = false;
 	calldata_get_bool(&cd, "success", &success);
 	calldata_free(&cd);
+	if (success) {
+		confirmedAutoTracking = checked;
+	} else {
+		const QSignalBlocker blocker(parametersAutoTracking);
+		parametersAutoTracking->setChecked(confirmedAutoTracking);
+	}
+	parametersStatus->setText(
+		QTStr(success ? "Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersApplied"
+			      : "Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersApplyFailed"));
+}
+
+void OBSBasicFalconMControl::ApplyAngleRange()
+{
+	if (!source || !obs_source_active(source) || !hasConfirmedCaptureParameters ||
+	    parametersAngleRange->value() == confirmedAngleRange) {
+		return;
+	}
+
+	calldata_t cd;
+	calldata_init(&cd);
+	calldata_set_int(&cd, "angle_range", parametersAngleRange->value());
+	proc_handler_call(obs_source_get_proc_handler(source), "set_capture_angle_range", &cd);
+	bool success = false;
+	calldata_get_bool(&cd, "success", &success);
+	calldata_free(&cd);
+	if (success) {
+		confirmedAngleRange = parametersAngleRange->value();
+	} else {
+		const QSignalBlocker blocker(parametersAngleRange);
+		parametersAngleRange->setValue(confirmedAngleRange);
+	}
 	parametersStatus->setText(
 		QTStr(success ? "Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersApplied"
 			      : "Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersApplyFailed"));
@@ -447,7 +834,9 @@ void OBSBasicFalconMControl::UpdateCaptureParameters()
 		return;
 	}
 
+	const QSignalBlocker auto_zoom_blocker(parametersAutoZoom);
 	const QSignalBlocker auto_tracking_blocker(parametersAutoTracking);
+	const QSignalBlocker angle_range_blocker(parametersAngleRange);
 	QStringList supported;
 	for (long long index = 0; index < resolutionCount; ++index) {
 		calldata_t item;
@@ -470,10 +859,14 @@ void OBSBasicFalconMControl::UpdateCaptureParameters()
 					       : QTStr("Basic.MainMenu.XBotGo.DeviceManagement.No"));
 	parametersMute->setText(mute ? QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Yes")
 				     : QTStr("Basic.MainMenu.XBotGo.DeviceManagement.No"));
-	parametersAutoZoom->setText(autoZoom ? QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Yes")
-					     : QTStr("Basic.MainMenu.XBotGo.DeviceManagement.No"));
+	parametersAutoZoom->setChecked(autoZoom);
 	parametersAutoTracking->setChecked(autoTracking);
-	parametersAngleRange->setText(QString::number(angleRange));
+	parametersAngleRange->setValue(static_cast<int>(angleRange));
+	confirmedAutoZoom = autoZoom;
+	confirmedAutoTracking = autoTracking;
+	confirmedAngleRange = parametersAngleRange->value();
+	hasConfirmedCaptureParameters = true;
+	UpdateManualZoomEnabled();
 	parametersAccelSpeed->setText(QString::number(accelSpeed));
 	parametersCountdown->setText(hasCountdown ? QString::number(countdown) : QStringLiteral("N/A"));
 	parametersFlicker->setText(hasFlicker ? QString::number(flicker) : QStringLiteral("N/A"));
@@ -481,7 +874,9 @@ void OBSBasicFalconMControl::UpdateCaptureParameters()
 								    : supported.join(QStringLiteral(", ")));
 	parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersReady"));
 	parametersRefresh->setEnabled(true);
-	parametersApply->setEnabled(true);
+	parametersAutoZoom->setEnabled(true);
+	parametersAutoTracking->setEnabled(true);
+	parametersAngleRange->setEnabled(true);
 	parametersTimeout->stop();
 	displayedParametersSequence = static_cast<uint64_t>(sequence);
 	calldata_free(&cd);
@@ -613,10 +1008,14 @@ void OBSBasicFalconMControl::Refresh()
 			sourceWasActive = true;
 			QueryModes();
 			QueryCaptureParameters();
+			QueryHallCalibration();
+			QueryCurrentZoom();
 		}
 		UpdateModes();
 		HandleModeResult();
 		UpdateCaptureParameters();
+		UpdateHallCalibration();
+		UpdateCurrentZoom();
 	} else {
 		sourceWasActive = false;
 		if (!waitingForModeResult) {
@@ -624,9 +1023,21 @@ void OBSBasicFalconMControl::Refresh()
 			modeRefresh->setEnabled(false);
 		}
 		parametersRefresh->setEnabled(false);
-		parametersApply->setEnabled(false);
+		parametersAutoZoom->setEnabled(false);
+		parametersAutoTracking->setEnabled(false);
+		parametersAngleRange->setEnabled(false);
 		parametersTimeout->stop();
 		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		hallCalibrationRefresh->setEnabled(false);
+		hallCalibrationStart->setEnabled(false);
+		hallCalibrationTimeout->stop();
+		hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		hasCurrentManualZoom = false;
+		manualZoomDragging = false;
+		manualZoomSlider->setEnabled(false);
+		manualZoomTimeout->stop();
+		manualZoomQueryDebounce->stop();
+		manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
 	}
 	calldata_t cd;
 	calldata_init(&cd);

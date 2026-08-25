@@ -52,6 +52,12 @@ public:
 	{
 		FALCONM_LOG_INFO("FalconM: this=%p uniqueID=%d FalconMStreamSdk constructor", (void *)this,
 				 instance_id_);
+		event_factories_.emplace(HallCalibrationStatusEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
+			return std::make_unique<HallCalibrationStatusEvent>();
+		});
+		event_factories_.emplace(CurrentZoomEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
+			return std::make_unique<CurrentZoomEvent>();
+		});
 		event_factories_.emplace(SupportedModesEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
 			return std::make_unique<SupportedModesEvent>();
 		});
@@ -238,7 +244,7 @@ public:
 	{
 		falconm_device_state result;
 		std::scoped_lock lock(supported_modes_mutex_, capture_mode_mutex_, capture_parameters_mutex_,
-				      angle_mutex_);
+				      angle_mutex_, hall_calibration_mutex_, current_zoom_mutex_);
 		result.supported_modes = supported_modes_;
 		result.supported_modes_sequence = supported_modes_sequence_;
 		result.capture_mode_result = capture_mode_result_;
@@ -247,6 +253,10 @@ public:
 		result.default_capture_parameters = default_capture_parameters_;
 		result.default_capture_parameters_sequence = default_capture_parameters_sequence_;
 		result.motor_angle = angle_;
+		result.hall_calibration_status = hall_calibration_status_;
+		result.hall_calibration_sequence = hall_calibration_sequence_;
+		result.current_zoom = current_zoom_;
+		result.current_zoom_sequence = current_zoom_sequence_;
 		return result;
 	}
 
@@ -266,6 +276,8 @@ private:
 		if (connected_) {
 			send(SetMotorAngleReportingRequest{true});
 			send(QueryMotorAngleRequest{});
+			send(QueryHallCalibrationRequest{});
+			send(QueryCurrentZoomRequest{});
 			if (!startStreaming()) {
 				blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d startStreaming failed after peer connection",
 				     (void *)this, instance_id_);
@@ -490,7 +502,15 @@ private:
 	}
 	void dispatchEvent(const FalconEvent &event)
 	{
-		if (const auto *modes = dynamic_cast<const SupportedModesEvent *>(&event)) {
+		if (const auto *hall = dynamic_cast<const HallCalibrationStatusEvent *>(&event)) {
+			std::lock_guard<std::mutex> lock(hall_calibration_mutex_);
+			hall_calibration_status_ = hall->status();
+			++hall_calibration_sequence_;
+		} else if (const auto *zoom = dynamic_cast<const CurrentZoomEvent *>(&event)) {
+			std::lock_guard<std::mutex> lock(current_zoom_mutex_);
+			current_zoom_ = zoom->value();
+			++current_zoom_sequence_;
+		} else if (const auto *modes = dynamic_cast<const SupportedModesEvent *>(&event)) {
 			supported_modes_callback callback;
 			{
 				std::lock_guard<std::mutex> lock(supported_modes_mutex_);
@@ -602,6 +622,12 @@ private:
 	std::atomic<bool> streaming_{false};
 	mutable std::mutex angle_mutex_;
 	falconm_motor_angle angle_;
+	mutable std::mutex hall_calibration_mutex_;
+	falconm_hall_calibration_status hall_calibration_status_ = falconm_hall_calibration_status::uncalibrated;
+	uint64_t hall_calibration_sequence_ = 0;
+	mutable std::mutex current_zoom_mutex_;
+	uint8_t current_zoom_ = 10;
+	uint64_t current_zoom_sequence_ = 0;
 	mutable std::mutex supported_modes_mutex_;
 	falconm_supported_modes supported_modes_;
 	uint64_t supported_modes_sequence_ = 0;

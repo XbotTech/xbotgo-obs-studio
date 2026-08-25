@@ -249,6 +249,63 @@ static void falconm_set_buzzer_mode(void *data, calldata_t *cd)
 	calldata_set_bool(cd, "success", d->stream->send(SetBuzzerModeRequest{static_cast<uint8_t>(mode)}));
 }
 
+static void falconm_query_hall_calibration(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	calldata_set_bool(cd, "success", d->stream && d->stream->send(QueryHallCalibrationRequest{}));
+}
+
+static void falconm_start_hall_calibration(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	calldata_set_bool(cd, "success", d->stream && d->stream->send(StartHallCalibrationRequest{}));
+}
+
+static void falconm_get_hall_calibration(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	if (!d->stream) {
+		return;
+	}
+	const auto state = d->stream->state();
+	calldata_set_int(cd, "sequence", static_cast<long long>(state.hall_calibration_sequence));
+	calldata_set_int(cd, "status", static_cast<long long>(state.hall_calibration_status));
+}
+
+static void falconm_send_manual_zoom(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	long long type = -1, value = 0;
+	if (!d->stream || !calldata_get_int(cd, "type", &type) || !calldata_get_int(cd, "value", &value) ||
+	    (type == static_cast<long long>(falconm_zoom_type::relative) && value != -1 && value != 1) ||
+	    (type == static_cast<long long>(falconm_zoom_type::absolute) && (value < 1 || value > 3)) ||
+	    (type != static_cast<long long>(falconm_zoom_type::relative) &&
+	     type != static_cast<long long>(falconm_zoom_type::absolute))) {
+		calldata_set_bool(cd, "success", false);
+		return;
+	}
+	calldata_set_bool(
+		cd, "success",
+		d->stream->send(ManualZoomRequest{static_cast<falconm_zoom_type>(type), static_cast<int8_t>(value)}));
+}
+
+static void falconm_query_current_zoom(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	calldata_set_bool(cd, "success", d->stream && d->stream->send(QueryCurrentZoomRequest{}));
+}
+
+static void falconm_get_current_zoom(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	if (!d->stream) {
+		return;
+	}
+	const auto state = d->stream->state();
+	calldata_set_int(cd, "sequence", static_cast<long long>(state.current_zoom_sequence));
+	calldata_set_int(cd, "value", state.current_zoom);
+}
+
 static void falconm_get_angle(void *data, calldata_t *cd)
 {
 	auto *d = static_cast<falconm_source *>(data);
@@ -337,6 +394,17 @@ static void falconm_query_default_capture_parameters(void *data, calldata_t *cd)
 	calldata_set_bool(cd, "success", d->stream && d->stream->send(QueryDefaultCaptureParametersRequest{}));
 }
 
+template<typename Update>
+static bool falconm_update_capture_parameters(falconm_source *source, Update &&update)
+{
+	if (!source || !source->stream) {
+		return false;
+	}
+	auto parameters = source->stream->state().capture_parameters;
+	update(parameters);
+	return source->stream->send(SetCaptureParametersRequest{std::move(parameters)});
+}
+
 static void falconm_set_capture_parameters(void *data, calldata_t *cd)
 {
 	auto *d = static_cast<falconm_source *>(data);
@@ -357,20 +425,21 @@ static void falconm_set_capture_parameters(void *data, calldata_t *cd)
 		return;
 	}
 
-	falconm_capture_parameters parameters = d->stream->state().capture_parameters;
-	parameters.watermark = watermark;
-	parameters.mute = mute;
-	parameters.resolution_id = static_cast<uint8_t>(resolution_id);
-	parameters.resolution = resolution;
-	parameters.auto_zoom = auto_zoom;
-	parameters.auto_tracking = auto_tracking;
-	parameters.angle_range = static_cast<uint16_t>(angle_range);
-	parameters.accel_speed = static_cast<uint16_t>(accel_speed);
-	parameters.has_countdown_time = true;
-	parameters.countdown_time = static_cast<uint16_t>(countdown);
-	parameters.has_flicker_set = true;
-	parameters.flicker_set = static_cast<uint8_t>(flicker);
-	calldata_set_bool(cd, "success", d->stream->send(SetCaptureParametersRequest{std::move(parameters)}));
+	const bool success = falconm_update_capture_parameters(d, [&](falconm_capture_parameters &parameters) {
+		parameters.watermark = watermark;
+		parameters.mute = mute;
+		parameters.resolution_id = static_cast<uint8_t>(resolution_id);
+		parameters.resolution = resolution;
+		parameters.auto_zoom = auto_zoom;
+		parameters.auto_tracking = auto_tracking;
+		parameters.angle_range = static_cast<uint16_t>(angle_range);
+		parameters.accel_speed = static_cast<uint16_t>(accel_speed);
+		parameters.has_countdown_time = true;
+		parameters.countdown_time = static_cast<uint16_t>(countdown);
+		parameters.has_flicker_set = true;
+		parameters.flicker_set = static_cast<uint8_t>(flicker);
+	});
+	calldata_set_bool(cd, "success", success);
 }
 
 static void falconm_set_capture_auto_tracking(void *data, calldata_t *cd)
@@ -381,9 +450,80 @@ static void falconm_set_capture_auto_tracking(void *data, calldata_t *cd)
 		calldata_set_bool(cd, "success", false);
 		return;
 	}
-	falconm_capture_parameters parameters = d->stream->state().capture_parameters;
-	parameters.auto_tracking = auto_tracking;
-	calldata_set_bool(cd, "success", d->stream->send(SetCaptureParametersRequest{std::move(parameters)}));
+	const bool success = falconm_update_capture_parameters(
+		d, [auto_tracking](falconm_capture_parameters &parameters) {
+			parameters.auto_tracking = auto_tracking;
+		});
+	calldata_set_bool(cd, "success", success);
+}
+
+static void falconm_set_capture_auto_zoom(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	bool auto_zoom = false;
+	if (!d->stream || !calldata_get_bool(cd, "auto_zoom", &auto_zoom)) {
+		calldata_set_bool(cd, "success", false);
+		return;
+	}
+	const bool success = falconm_update_capture_parameters(
+		d, [auto_zoom](falconm_capture_parameters &parameters) {
+			parameters.auto_zoom = auto_zoom;
+		});
+	calldata_set_bool(cd, "success", success);
+}
+
+static void falconm_set_capture_angle_range(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	long long angle_range = -1;
+	if (!d->stream || !calldata_get_int(cd, "angle_range", &angle_range) || angle_range < 60 ||
+	    angle_range > 150) {
+		calldata_set_bool(cd, "success", false);
+		return;
+	}
+	const bool success = falconm_update_capture_parameters(
+		d, [angle_range](falconm_capture_parameters &parameters) {
+			parameters.angle_range = static_cast<uint16_t>(angle_range);
+		});
+	calldata_set_bool(cd, "success", success);
+}
+
+static void falconm_set_capture_tracking_and_angle_range(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	bool auto_tracking = false;
+	long long angle_range = -1;
+	if (!d->stream || !calldata_get_bool(cd, "auto_tracking", &auto_tracking) ||
+	    !calldata_get_int(cd, "angle_range", &angle_range) || angle_range < 60 || angle_range > 150) {
+		calldata_set_bool(cd, "success", false);
+		return;
+	}
+	const bool success = falconm_update_capture_parameters(
+		d, [auto_tracking, angle_range](falconm_capture_parameters &parameters) {
+			parameters.auto_tracking = auto_tracking;
+			parameters.angle_range = static_cast<uint16_t>(angle_range);
+		});
+	calldata_set_bool(cd, "success", success);
+}
+
+static void falconm_set_capture_zoom_tracking_and_angle_range(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	bool auto_zoom = false, auto_tracking = false;
+	long long angle_range = -1;
+	if (!d->stream || !calldata_get_bool(cd, "auto_zoom", &auto_zoom) ||
+	    !calldata_get_bool(cd, "auto_tracking", &auto_tracking) ||
+	    !calldata_get_int(cd, "angle_range", &angle_range) || angle_range < 60 || angle_range > 150) {
+		calldata_set_bool(cd, "success", false);
+		return;
+	}
+	const bool success = falconm_update_capture_parameters(
+		d, [auto_zoom, auto_tracking, angle_range](falconm_capture_parameters &parameters) {
+			parameters.auto_zoom = auto_zoom;
+			parameters.auto_tracking = auto_tracking;
+			parameters.angle_range = static_cast<uint16_t>(angle_range);
+		});
+	calldata_set_bool(cd, "success", success);
 }
 
 static void falconm_get_capture_parameters(void *data, calldata_t *cd)
@@ -479,6 +619,14 @@ void falconm_register_proc_handler(falconm_source *d)
 	proc_handler_add(ph, "void set_motor_angle_reporting(bool enabled, out bool success)",
 			 falconm_set_angle_reporting, d);
 	proc_handler_add(ph, "void set_buzzer_mode(int mode, out bool success)", falconm_set_buzzer_mode, d);
+	proc_handler_add(ph, "void query_hall_calibration(out bool success)", falconm_query_hall_calibration, d);
+	proc_handler_add(ph, "void start_hall_calibration(out bool success)", falconm_start_hall_calibration, d);
+	proc_handler_add(ph, "void get_hall_calibration(out int sequence, out int status)",
+			 falconm_get_hall_calibration, d);
+	proc_handler_add(ph, "void send_manual_zoom(int type, int value, out bool success)", falconm_send_manual_zoom,
+			 d);
+	proc_handler_add(ph, "void query_current_zoom(out bool success)", falconm_query_current_zoom, d);
+	proc_handler_add(ph, "void get_current_zoom(out int sequence, out int value)", falconm_get_current_zoom, d);
 	proc_handler_add(
 		ph,
 		"void get_motor_angle(out int result, out float horizontal, out float vertical, out int horizontal_limit, out int vertical_limit)",
@@ -499,6 +647,17 @@ void falconm_register_proc_handler(falconm_source *d)
 		falconm_set_capture_parameters, d);
 	proc_handler_add(ph, "void set_capture_auto_tracking(bool auto_tracking, out bool success)",
 			 falconm_set_capture_auto_tracking, d);
+	proc_handler_add(ph, "void set_capture_auto_zoom(bool auto_zoom, out bool success)",
+			 falconm_set_capture_auto_zoom, d);
+	proc_handler_add(ph, "void set_capture_angle_range(int angle_range, out bool success)",
+			 falconm_set_capture_angle_range, d);
+	proc_handler_add(
+		ph, "void set_capture_tracking_and_angle_range(bool auto_tracking, int angle_range, out bool success)",
+		falconm_set_capture_tracking_and_angle_range, d);
+	proc_handler_add(
+		ph,
+		"void set_capture_zoom_tracking_and_angle_range(bool auto_zoom, bool auto_tracking, int angle_range, out bool success)",
+		falconm_set_capture_zoom_tracking_and_angle_range, d);
 	proc_handler_add(
 		ph,
 		"void get_capture_parameters(out int sequence, out int mode, out bool watermark, out bool mute, out int resolution_id, out string resolution, out bool auto_zoom, out bool auto_tracking, out int angle_range, out int accel_speed, out bool has_countdown, out int countdown, out bool has_flicker, out int flicker, out int supported_resolution_count)",
