@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 #include <obs.h>
@@ -50,6 +51,13 @@ struct falconm_device_state {
 	uint64_t current_zoom_sequence = 0;
 };
 
+struct falconm_video_encoder_options {
+	std::optional<int> width;
+	std::optional<int> height;
+	std::optional<int> fps;
+	std::optional<int> bitrate;
+};
+
 class FalconMStream {
 public:
 	using decoded_callback = std::function<void(const obs_source_frame &)>;
@@ -59,7 +67,10 @@ public:
 
 	virtual ~FalconMStream() = default;
 	virtual bool connect(const std::string &device_id, const std::string &broker_address, uint16_t broker_port) = 0;
-	virtual bool startStreaming(const uint32_t video_ssrc, const uint32_t audio_ssrc, const uint32_t dataSsrc) = 0;
+	/* Unset encoder options retain the Media SDK's VideoEncoderNodeConfig defaults.
+	 * Explicit values must be positive; otherwise streaming fails without calling the SDK. */
+	virtual bool startStreaming(const uint32_t video_ssrc, const uint32_t audio_ssrc, const uint32_t data_ssrc,
+				    const falconm_video_encoder_options &encoder_options = {}) = 0;
 	virtual bool stopStreaming() = 0;
 	virtual bool isStreaming() const = 0;
 	virtual void disconnect() = 0;

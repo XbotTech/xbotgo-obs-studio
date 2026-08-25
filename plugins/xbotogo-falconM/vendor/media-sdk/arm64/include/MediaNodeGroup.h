@@ -63,7 +63,7 @@ struct MediaNodeGroup {
     std::unordered_map<int32_t, VertexInfo> m_vertices;
     std::map<std::string, VertexInfo*> m_namesToVertex;
 
-    MediaNodeGroup(int32_t *nodeId, MessageListener *listener, std::shared_ptr<worker_thread> worker = nullptr);
+    MediaNodeGroup(int32_t *nodeId, MessageListener *listener, std::shared_ptr<worker_thread> worker = nullptr, bool attach_to_java_thread = false);
     ~MediaNodeGroup();
 
     int create(std::vector<MediaNodeConfig> &nodeConfigs,

@@ -1,4 +1,5 @@
 #include "falconm-stream.hpp"
+#include "falconm-log.hpp"
 #include "protocol/falcon-events.hpp"
 #include <BLRTCServerSession.h>
 #include <GlobalInit.h>
@@ -14,10 +15,10 @@
 using namespace blink::media;
 
 namespace xbotgo {
-constexpr uint32_t kDefaultVideoSsrc = 6666;
-constexpr uint32_t kDefaultAudioSsrc = 7777;
-constexpr uint32_t kDefaultDataSsrc = 8888;
-
+constexpr uint32_t kDefaultVideoSsrc = 600000;
+constexpr uint32_t kDefaultAudioSsrc = 700000;
+constexpr uint32_t kDefaultDataSsrc = 800000;
+constexpr uint32_t kDefaultMultiCamPullPort = 61018;
 static void disable_media_sdk_logging()
 {
 	static const bool logging_disabled = [] {
@@ -47,8 +48,10 @@ static std::string payload_to_hex(const uint8_t *payload, size_t size)
 
 class FalconMStreamSdk final : public FalconMStream, private rtcsdk::BLRTCServerSessionListener {
 public:
-	FalconMStreamSdk()
+	FalconMStreamSdk() : instance_id_(++uniqueID)
 	{
+		FALCONM_LOG_INFO("FalconM: this=%p uniqueID=%d FalconMStreamSdk constructor", (void *)this,
+				 instance_id_);
 		event_factories_.emplace(HallCalibrationStatusEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
 			return std::make_unique<HallCalibrationStatusEvent>();
 		});
@@ -73,43 +76,62 @@ public:
 		event_factories_.emplace(DefaultCaptureParametersEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
 			return std::make_unique<DefaultCaptureParametersEvent>();
 		});
-		disable_media_sdk_logging();
-		const int init_result = blink::utils::GlobalInit::getInstance().init(blink::utils::GlobalConfig());
-		if (init_result != 0) {
-			blog(LOG_ERROR, "FalconM: Media SDK GlobalInit failed, result=%d", init_result);
+//		disable_media_sdk_logging();
+		bool initialized_now = false;
+		std::call_once(global_init_once_, [&initialized_now] {
+			global_init_result_ = blink::utils::GlobalInit::getInstance().init(blink::utils::GlobalConfig());
+			initialized_now = true;
+		});
+		if (global_init_result_ == 0) {
+			FALCONM_LOG_INFO("FalconM: this=%p uniqueID=%d Media SDK GlobalInit result=%d initialized_now=%s",
+					 (void *)this, instance_id_, global_init_result_, initialized_now ? "true" : "false");
+		} else {
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d Media SDK GlobalInit result=%d initialized_now=%s",
+			     (void *)this, instance_id_, global_init_result_, initialized_now ? "true" : "false");
 		}
 		session_ = rtcsdk::BLRTCServerSession::create(rtcsdk::RTC_SESSION_TYPE_DRAGONFLY);
 		if (session_) {
 			session_->addListener(this);
 		} else {
-			blog(LOG_ERROR, "FalconM: failed to create Dragonfly server session");
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d failed to create Dragonfly server session", (void *)this,
+			     instance_id_);
 		}
 	}
 	~FalconMStreamSdk() override
 	{
+		FALCONM_LOG_INFO("FalconM: this=%p uniqueID=%d FalconMStreamSdk destructor", (void *)this,
+				 instance_id_);
 		disconnect();
 		delete session_;
 	}
 	bool connect(const std::string &device_id, const std::string &broker_address, uint16_t broker_port) override
 	{
+		FALCONM_LOG_INFO(
+			"FalconM: this=%p uniqueID=%d connect controller_id='%s' device_id='%s' broker_address='%s' "
+			"broker_port=%u",
+			(void *)this, instance_id_, controller_id_.c_str(), device_id.c_str(), broker_address.c_str(),
+			broker_port);
 		if (!session_ || broker_address.empty() || device_id.empty()) {
-			blog(LOG_ERROR, "FalconM: invalid session or connection settings");
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d invalid session or connection settings", (void *)this,
+			     instance_id_);
 			return false;
 		}
 		device_id_ = device_id;
+		broker_address_ = broker_address;
 		if (session_->startSession() != 0) {
-			blog(LOG_ERROR, "FalconM: BLRTCServerSession startSession failed");
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d BLRTCServerSession startSession failed", (void *)this,
+			     instance_id_);
 			return false;
 		}
 		blink::signaling::ConnectClientConfig c;
+		controller_id_ = "uuid" + std::to_string(instance_id_);
 		c.controlerId = controller_id_;
 		c.deviceId = device_id_;
-		blog(LOG_INFO, "FalconM: connect device_id='%s', broker_address='%s', broker_port=%u",
-		     device_id.c_str(), broker_address.c_str(), broker_port);
 		c.ipv4List.push_back(broker_address);
 		c.mqttBrokerPort = broker_port;
 		if (session_->connectPeerSession(c) != 0) {
-			blog(LOG_ERROR, "FalconM: connectPeerSession failed for device '%s'", device_id_.c_str());
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d connectPeerSession failed for device '%s'", (void *)this,
+			     instance_id_, device_id_.c_str());
 			session_->stopSession();
 			return false;
 		}
@@ -118,17 +140,51 @@ public:
 	}
 	bool startStreaming(const uint32_t video_ssrc = kDefaultVideoSsrc,
 			    const uint32_t audio_ssrc = kDefaultAudioSsrc,
-			    const uint32_t dataSsrc = kDefaultDataSsrc) override
+			    const uint32_t data_ssrc = kDefaultDataSsrc,
+			    const falconm_video_encoder_options &encoder_options = {}) override
 	{
 		if (!connected_ || streaming_) {
 			return connected_ && streaming_;
 		}
+		const auto valid_encoder_option = [](const std::optional<int> &value) {
+			return !value || *value > 0;
+		};
+		if (!valid_encoder_option(encoder_options.width) || !valid_encoder_option(encoder_options.height) ||
+		    !valid_encoder_option(encoder_options.fps) || !valid_encoder_option(encoder_options.bitrate)) {
+			blog(LOG_ERROR,
+			     "FalconM: this=%p uniqueID=%d startStreaming rejected invalid encoder options width=%d "
+			     "height=%d fps=%d bitrate=%d",
+			     (void *)this, instance_id_, encoder_options.width.value_or(-1),
+			     encoder_options.height.value_or(-1), encoder_options.fps.value_or(-1),
+			     encoder_options.bitrate.value_or(-1));
+			return false;
+		}
 		rtcsdk::PullStreamParams p;
-		p.srtPushCfg.videoSsrc = video_ssrc;
-		p.srtPushCfg.audioSsrc = audio_ssrc;
-		p.srtPushCfg.dataSsrc = dataSsrc;
+		p.srtPushCfg.videoSsrc = video_ssrc + instance_id_;
+		p.srtPushCfg.audioSsrc = audio_ssrc + instance_id_;
+		p.srtPushCfg.dataSsrc = data_ssrc + instance_id_;
+		p.srtPullCfg.srtServerPort = kDefaultMultiCamPullPort + instance_id_;
+		if (encoder_options.width) {
+			p.videoEncodeCfg.width = *encoder_options.width;
+		}
+		if (encoder_options.height) {
+			p.videoEncodeCfg.height = *encoder_options.height;
+		}
+		if (encoder_options.fps) {
+			p.videoEncodeCfg.fps = *encoder_options.fps;
+		}
+		if (encoder_options.bitrate) {
+			p.videoEncodeCfg.bitrate = *encoder_options.bitrate;
+		}
+		FALCONM_LOG_INFO(
+			"FalconM: this=%p uniqueID=%d startStreaming controller_id='%s' videoSsrc=%u audioSsrc=%u "
+			"dataSsrc=%u srtServerPort=%u encoderWidth=%d encoderHeight=%d encoderFps=%d encoderBitrate=%d",
+			(void *)this, instance_id_, controller_id_.c_str(), p.srtPushCfg.videoSsrc, p.srtPushCfg.audioSsrc,
+			p.srtPushCfg.dataSsrc, p.srtPullCfg.srtServerPort, p.videoEncodeCfg.width, p.videoEncodeCfg.height,
+			p.videoEncodeCfg.fps, p.videoEncodeCfg.bitrate);
 		if (session_->startPullStream(device_id_, p) != 0) {
-			blog(LOG_ERROR, "FalconM: startPullStream failed for device '%s'", device_id_.c_str());
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d startPullStream failed for device '%s'", (void *)this,
+			     instance_id_, device_id_.c_str());
 			return false;
 		}
 		streaming_ = true;
@@ -142,13 +198,15 @@ public:
 		const int result = session_->stopPullStream(device_id_);
 		streaming_ = false;
 		if (result != 0) {
-			blog(LOG_ERROR, "FalconM: stopPullStream failed for device '%s'", device_id_.c_str());
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d stopPullStream failed for device '%s'", (void *)this,
+			     instance_id_, device_id_.c_str());
 		}
 		return result == 0;
 	}
 	bool isStreaming() const override { return streaming_; }
 	void disconnect() override
 	{
+		send(SetMotorAngleReportingRequest{false});
 		stopStreaming();
 		if (session_ && connected_) {
 			session_->disconnectPeerSession(device_id_);
@@ -177,8 +235,9 @@ public:
 		m.payload = const_cast<uint8_t *>(payload.data());
 		m.payloadlen = (uint32_t)payload.size();
 		const std::string payload_hex = payload_to_hex(payload.data(), payload.size());
-		blog(LOG_INFO, "FalconM: sendPeerMessage device='%s' topic='%s' payloadlen=%u payload=%s",
-		     device_id_.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
+		FALCONM_LOG_INFO(
+			"FalconM: this=%p uniqueID=%d sendPeerMessage device='%s' topic='%s' payloadlen=%u payload=%s",
+			(void *)this, instance_id_, device_id_.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
 		return session_->sendPeerMessage(device_id_, m) == 0;
 	}
 	falconm_device_state state() const override
@@ -204,11 +263,15 @@ public:
 private:
 	void onPeerDevicesRefresh(rtcsdk::BLNSPClient &client) override
 	{
-		blog(LOG_INFO, "FalconM: onPeerDevicesRefresh client=%s", client.name.c_str());
+		FALCONM_LOG_INFO("FalconM: this=%p uniqueID=%d onPeerDevicesRefresh client=%s", (void *)this,
+				 instance_id_, client.name.c_str());
 	}
 	void onPeerConnectStatus(rtcsdk::BLNSPClient &client, int status) override
 	{
-		blog(LOG_INFO, "FalconM: onPeerConnectStatus client=%s status=%d", client.name.c_str(), status);
+		FALCONM_LOG_INFO(
+			"FalconM: this=%p uniqueID=%d onPeerConnectStatus client=%s status=%d device_id='%s' "
+			"broker_address='%s'",
+			(void *)this, instance_id_, client.name.c_str(), status, device_id_.c_str(), broker_address_.c_str());
 		connected_ = status == rtcsdk::PEER_CONNECTION_STATUS_CONNECTED;
 		if (connected_) {
 			send(SetMotorAngleReportingRequest{true});
@@ -216,10 +279,12 @@ private:
 			send(QueryHallCalibrationRequest{});
 			send(QueryCurrentZoomRequest{});
 			if (!startStreaming()) {
-				blog(LOG_ERROR, "FalconM: startStreaming failed after peer connection");
+				blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d startStreaming failed after peer connection",
+				     (void *)this, instance_id_);
 			}
 		} else {
-			blog(LOG_ERROR, "FalconM: peer connection failed, status=%d", status);
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d peer connection failed, status=%d", (void *)this,
+			     instance_id_, status);
 			return;
 		}
 	}
@@ -227,24 +292,43 @@ private:
 	{
 		UNUSED_PARAMETER(ssrc);
 		UNUSED_PARAMETER(data);
-		// blog(LOG_INFO, "FalconM: onEncodedFrame ssrc=%u data=%p", ssrc, data.get());
 	}
 	void onDecodedFrame(uint32_t ssrc, std::shared_ptr<MediaData> d) override
 	{
 		if (!d) {
-			blog(LOG_ERROR, "FalconM: onDecodedFrame received null data, ssrc=%u", ssrc);
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d onDecodedFrame received null data, ssrc=%u", (void *)this,
+			     instance_id_, ssrc);
 			return;
 		}
-		// blog(LOG_INFO, "FalconM: onDecodedFrame ssrc=%u format=%d type=%d", ssrc, d->format, d->type);
+		FALCONM_LOG_INFO(
+			"FalconM: this=%p uniqueID=%d onDecodedFrame ssrc=%u data=%p type=%d format=%d streaming=%s "
+			"buffer=%p bufferObj=%p width=%d height=%d sampleRate=%d channels=%d bitsPerSample=%d "
+			"pts=%lld dts=%lld fromNodeId=%d toNodeId=%d rotation=%d",
+			(void *)this, instance_id_, ssrc, (void *)d.get(), d->type, d->format,
+			streaming_ ? "true" : "false", (void *)d->buffer.get(), (void *)d->bufferObj.get(), d->width,
+			d->height, d->sampleRate, d->channels, d->bitsPerSample, (long long)d->pts, (long long)d->dts,
+			d->fromNodeId, d->toNodeId, d->rotation);
 		if (d->format == MEDIA_DATA_FORMAT_IMAGE_BUFFER) {
 			if (!d->bufferObj) {
-				blog(LOG_ERROR, "FalconM: IMAGE_BUFFER decoded frame has null bufferObj, ssrc=%u",
-				     ssrc);
+				blog(LOG_ERROR,
+				     "FalconM: this=%p uniqueID=%d IMAGE_BUFFER decoded frame has null bufferObj, ssrc=%u",
+				     (void *)this, instance_id_, ssrc);
 				return;
 			}
 			CVPixelBufferRef pixel_buffer = (CVPixelBufferRef)d->bufferObj->getObject();
-			if (!pixel_buffer || CVPixelBufferLockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly) !=
-						     kCVReturnSuccess) {
+			if (!pixel_buffer) {
+				blog(LOG_ERROR,
+				     "FalconM: this=%p uniqueID=%d IMAGE_BUFFER GenericObject returned null CVPixelBuffer, ssrc=%u "
+				     "bufferObj=%p",
+				     (void *)this, instance_id_, ssrc, (void *)d->bufferObj.get());
+				return;
+			}
+			const CVReturn lock_result = CVPixelBufferLockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly);
+			if (lock_result != kCVReturnSuccess) {
+				blog(LOG_ERROR,
+				     "FalconM: this=%p uniqueID=%d CVPixelBufferLockBaseAddress failed, ssrc=%u "
+				     "pixelBuffer=%p result=%d",
+				     (void *)this, instance_id_, ssrc, (void *)pixel_buffer, lock_result);
 				return;
 			}
 			obs_source_frame frame = {};
@@ -265,8 +349,8 @@ private:
 				range = VIDEO_RANGE_FULL;
 				break;
 			default:
-				blog(LOG_WARNING, "FalconM: unsupported CVPixelBuffer format 0x%08x",
-				     (unsigned)pixel_format);
+				blog(LOG_WARNING, "FalconM: this=%p uniqueID=%d unsupported CVPixelBuffer format 0x%08x",
+				     (void *)this, instance_id_, (unsigned)pixel_format);
 				CVPixelBufferUnlockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly);
 				return;
 			}
@@ -299,18 +383,43 @@ private:
 							       frame.color_range_min, frame.color_range_max);
 			if (decoded_cb_) {
 				decoded_cb_(frame);
+			} else {
+				blog(LOG_WARNING,
+				     "FalconM: this=%p uniqueID=%d IMAGE_BUFFER frame dropped because decoded callback is empty, "
+				     "ssrc=%u size=%ux%u",
+				     (void *)this, instance_id_, ssrc, frame.width, frame.height);
 			}
 			CVPixelBufferUnlockBaseAddress(pixel_buffer, kCVPixelBufferLock_ReadOnly);
 			return;
 		}
-		if (!d || !d->buffer || !streaming_) {
-			blog(LOG_WARNING, "FalconM: decoded callback received without an active buffer");
+		if (!d->buffer) {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d decoded frame rejected because buffer is null, ssrc=%u type=%d "
+			     "format=%d streaming=%s",
+			     (void *)this, instance_id_, ssrc, d->type, d->format, streaming_ ? "true" : "false");
+			return;
+		}
+		if (!streaming_) {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d decoded frame rejected because streaming is false, ssrc=%u "
+			     "type=%d format=%d buffer=%p",
+			     (void *)this, instance_id_, ssrc, d->type, d->format, (void *)d->buffer.get());
 			return;
 		}
 		uint8_t *base = d->buffer->getData();
 		const int size = d->buffer->getSize();
-		if (!base || size <= 0) {
-			blog(LOG_WARNING, "FalconM: decoded callback contains an empty buffer");
+		if (!base) {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d decoded frame rejected because buffer data is null, ssrc=%u "
+			     "type=%d format=%d buffer=%p size=%d",
+			     (void *)this, instance_id_, ssrc, d->type, d->format, (void *)d->buffer.get(), size);
+			return;
+		}
+		if (size <= 0) {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d decoded frame rejected because buffer size is invalid, ssrc=%u "
+			     "type=%d format=%d data=%p size=%d",
+			     (void *)this, instance_id_, ssrc, d->type, d->format, (void *)base, size);
 			return;
 		}
 		if (d->type == MEDIA_DATA_TYPE_AUDIO && d->format == MEDIA_DATA_FORMAT_PCM_S16) {
@@ -323,10 +432,33 @@ private:
 			a.timestamp = d->pts >= 0 ? (uint64_t)d->pts * 1000 : 0;
 			if (audio_cb_) {
 				audio_cb_(a);
+			} else {
+				blog(LOG_WARNING,
+				     "FalconM: this=%p uniqueID=%d audio frame dropped because audio callback is empty, ssrc=%u "
+				     "sampleRate=%u channels=%d frames=%u",
+				     (void *)this, instance_id_, ssrc, a.samples_per_sec, d->channels, a.frames);
 			}
 			return;
 		}
-		if (d->type != MEDIA_DATA_TYPE_VIDEO || d->width <= 0 || d->height <= 0) {
+		if (d->type != MEDIA_DATA_TYPE_VIDEO) {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d decoded frame rejected because media type is not video and is not "
+			     "supported PCM audio, ssrc=%u type=%d format=%d",
+			     (void *)this, instance_id_, ssrc, d->type, d->format);
+			return;
+		}
+		if (d->width <= 0) {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d decoded video frame rejected because width is invalid, ssrc=%u "
+			     "format=%d width=%d height=%d size=%d",
+			     (void *)this, instance_id_, ssrc, d->format, d->width, d->height, size);
+			return;
+		}
+		if (d->height <= 0) {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d decoded video frame rejected because height is invalid, ssrc=%u "
+			     "format=%d width=%d height=%d size=%d",
+			     (void *)this, instance_id_, ssrc, d->format, d->width, d->height, size);
 			return;
 		}
 		obs_source_frame f = {};
@@ -350,16 +482,23 @@ private:
 			f.data[2] = base + y + uv;
 			f.linesize[2] = d->width / 2;
 		} else {
-			blog(LOG_WARNING, "FalconM: unsupported decoded format %d", d->format);
+			blog(LOG_WARNING, "FalconM: this=%p uniqueID=%d unsupported decoded format %d", (void *)this,
+			     instance_id_, d->format);
 			return;
 		}
 		if (decoded_cb_) {
 			decoded_cb_(f);
+		} else {
+			blog(LOG_WARNING,
+			     "FalconM: this=%p uniqueID=%d video frame dropped because decoded callback is empty, ssrc=%u "
+			     "format=%d size=%dx%d",
+			     (void *)this, instance_id_, ssrc, d->format, d->width, d->height);
 		}
 	}
 	void onRTPMessage(uint32_t ssrc, std::shared_ptr<MediaData> data) override
 	{
-		blog(LOG_INFO, "FalconM: onRTPMessage ssrc=%u data=%p", ssrc, data.get());
+		UNUSED_PARAMETER(ssrc);
+		UNUSED_PARAMETER(data);
 	}
 	void dispatchEvent(const FalconEvent &event)
 	{
@@ -406,10 +545,12 @@ private:
 	{
 		const auto *payload = static_cast<const uint8_t *>(m.payload);
 		const std::string payload_hex = payload_to_hex(payload, m.payloadlen);
-		blog(LOG_INFO, "FalconM: onPeerMessage client='%s' topic='%s' payloadlen=%u payload=%s",
-		     client.name.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
+		FALCONM_LOG_INFO(
+			"FalconM: this=%p uniqueID=%d onPeerMessage client='%s' topic='%s' payloadlen=%u payload=%s",
+			(void *)this, instance_id_, client.name.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
 		if (!m.payload && m.payloadlen != 0) {
-			blog(LOG_ERROR, "FalconM: invalid signaling payload from '%s'", client.name.c_str());
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d invalid signaling payload from '%s'", (void *)this,
+			     instance_id_, client.name.c_str());
 			return;
 		}
 		const auto factory = event_factories_.find(m.topic);
@@ -418,8 +559,8 @@ private:
 			if (event->parse(payload, m.payloadlen)) {
 				dispatchEvent(*event);
 			} else {
-				blog(LOG_WARNING, "FalconM: invalid %s payload, size=%u hex=%s", m.topic.c_str(),
-				     m.payloadlen, payload_hex.c_str());
+				blog(LOG_WARNING, "FalconM: this=%p uniqueID=%d invalid %s payload, size=%u hex=%s", (void *)this,
+				     instance_id_, m.topic.c_str(), m.payloadlen, payload_hex.c_str());
 			}
 		}
 		if (signaling_cb_) {
@@ -429,8 +570,9 @@ private:
 	}
 	void onNewSrtStream(const MediaStreamInfo &stream) override
 	{
-		// 	blog(LOG_INFO, "[socket_source] new srt stream ssrc %u type %d format %d", stream.ssrc,
-		// 	     stream.mediaType, stream.mediaFormat);
+		FALCONM_LOG_INFO(
+			"FalconM: this=%p uniqueID=%d [socket_source] new srt stream ssrc=%u type=%d format=%d",
+			(void *)this, instance_id_, stream.ssrc, stream.mediaType, stream.mediaFormat);
 		/* Wires up the SDK-internal decode pipeline (VideoDecoderIos/AudioDecoderIos);
 		 * no surface/renderer is created on mac, only on Android. */
 		if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO) {
@@ -441,31 +583,39 @@ private:
 	}
 	void onDeleteSrtStream(const MediaStreamInfo &stream) override
 	{
-		blog(LOG_INFO, "FalconM: onDeleteSrtStream ssrc=%u", stream.ssrc);
+		FALCONM_LOG_INFO("FalconM: this=%p uniqueID=%d onDeleteSrtStream ssrc=%u", (void *)this, instance_id_,
+				 stream.ssrc);
 		if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO) {
 			session_->removeSurface(stream.ssrc);
 		} else if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_AUDIO) {
 			session_->removeRemoteAudioPlayer(stream.ssrc);
 		}
 		streaming_ = false;
-		blog(LOG_WARNING, "FalconM: SRT stream deleted, ssrc=%u", stream.ssrc);
+		blog(LOG_WARNING, "FalconM: this=%p uniqueID=%d SRT stream deleted, ssrc=%u", (void *)this, instance_id_,
+		     stream.ssrc);
 	}
 	void onVideoFormatChanged(uint32_t ssrc, int width, int height) override
 	{
-		blog(LOG_INFO, "FalconM: onVideoFormatChanged ssrc=%u size=%dx%d", ssrc, width, height);
+		FALCONM_LOG_INFO("FalconM: this=%p uniqueID=%d onVideoFormatChanged ssrc=%u size=%dx%d", (void *)this,
+				 instance_id_, ssrc, width, height);
 	}
 	void onSrtPullStates(const SrtPullStatesMessage &state) override
 	{
-		// blog(LOG_INFO, "FalconM: onSrtPullStates quality=%d loss=%.2f%%", state.networkQualityLevel,
-		//      state.packetLossRate * 100.0);
+		// FALCONM_LOG_INFO("FalconM: this=%p uniqueID=%d onSrtPullStates quality=%d loss=%.2f%%", (void *)this,
+		//                  instance_id_, state.networkQualityLevel, state.packetLossRate * 100.0);
 		if (state.networkQualityLevel == 0) {
-			blog(LOG_WARNING, "FalconM: SRT network quality is lowest, loss=%.2f%%",
-			     state.packetLossRate * 100.0);
+			blog(LOG_WARNING, "FalconM: this=%p uniqueID=%d SRT network quality is lowest, loss=%.2f%%",
+			     (void *)this, instance_id_, state.packetLossRate * 100.0);
 		}
 	}
 
 	rtcsdk::BLRTCServerSession *session_ = nullptr;
+	static int uniqueID;
+	static std::once_flag global_init_once_;
+	static int global_init_result_;
+	const int instance_id_;
 	std::string device_id_;
+	std::string broker_address_;
 	std::string controller_id_ = "uuid";
 	std::unordered_map<std::string, falcon_event_factory> event_factories_;
 	std::atomic<bool> connected_{false};
@@ -493,6 +643,10 @@ private:
 	signaling_callback signaling_cb_;
 	supported_modes_callback supported_modes_cb_;
 };
+
+int FalconMStreamSdk::uniqueID = 0;
+std::once_flag FalconMStreamSdk::global_init_once_;
+int FalconMStreamSdk::global_init_result_ = -1;
 
 std::unique_ptr<FalconMStream> falconm_stream_create()
 {

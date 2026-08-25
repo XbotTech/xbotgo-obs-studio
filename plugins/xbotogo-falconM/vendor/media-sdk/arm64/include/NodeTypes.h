@@ -52,6 +52,7 @@ public:
   static const char* VideoEncoder_StatesMessage;
   static const char* VideoEncoder_ConfigChangeMessage;
   static const char* VideoDecoder_StatesMessage;
+  static const char* VideoDecoder_VideoDecodeErrorMessage;
   static const char* AudioDecoder_StatesMessage;
   static const char* SrtPush_StatesMessage;
   static const char* SrtPull_StatesMessage;
