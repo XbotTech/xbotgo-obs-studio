@@ -3,21 +3,27 @@
 #include <QDialog>
 #include <obs.h>
 
+#include <vector>
+
 class QComboBox;
 class QCheckBox;
 class QLabel;
 class QPushButton;
+class QString;
 class QTimer;
 
 namespace XBotGo {
+class ComboBoxControl;
 class SliderControl;
 }
 
 class OBSBasicFalconMControl : public QDialog {
 	Q_OBJECT
 	obs_source_t *source = nullptr;
+	XBotGo::ComboBoxControl *cameraRoleControl = nullptr;
 	QLabel *connection = nullptr;
 	QLabel *angles = nullptr;
+	std::vector<QPushButton *> directionButtons;
 	QPushButton *buzzerLongButton = nullptr;
 	QLabel *buzzerStatus = nullptr;
 	QLabel *hallCalibrationStatus = nullptr;
@@ -67,7 +73,7 @@ class OBSBasicFalconMControl : public QDialog {
 	bool hasConfirmedCaptureParameters = false;
 	bool waitingForModes = false;
 	bool waitingForModeResult = false;
-	bool sourceWasActive = false;
+	bool sourceWasConnected = false;
 	bool hasCurrentManualZoom = false;
 	bool manualZoomDragging = false;
 

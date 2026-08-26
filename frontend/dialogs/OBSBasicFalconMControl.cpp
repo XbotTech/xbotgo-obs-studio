@@ -1,12 +1,16 @@
 #include "OBSBasicFalconMControl.hpp"
 
 #include <OBSApp.hpp>
+#include <widgets/OBSBasic.hpp>
 #include "moc_OBSBasicFalconMControl.cpp"
 
 #include <obs.h>
 #include <callback/calldata.h>
 #include <qt-wrappers.hpp>
+#include <xbotgo/components/XBotGoComboBoxControl.hpp>
 #include <xbotgo/components/XBotGoSliderControl.hpp>
+#include <xbotgo/scenes/XBotGoCameraRoleScenes.hpp>
+#include <xbotgo/sources/XBotGoFalconMSource.hpp>
 
 #include "../../plugins/xbotogo-falconM/falconm-protocol.hpp"
 
@@ -24,6 +28,23 @@
 
 namespace {
 constexpr int FalconMModeProtocolVersion = 3;
+
+int CameraRoleControlIndex(const std::optional<XBotGo::CameraRole> &role)
+{
+	if (!role) {
+		return -1;
+	}
+
+	switch (*role) {
+	case XBotGo::CameraRole::Center:
+		return 0;
+	case XBotGo::CameraRole::Left:
+		return 1;
+	case XBotGo::CameraRole::Right:
+		return 2;
+	}
+	return -1;
+}
 
 QString ModeLabel(uint16_t mode, bool beta)
 {
@@ -180,6 +201,31 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	setWindowTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Control"));
 	resize(420, 300);
 
+	cameraRoleControl = new XBotGo::ComboBoxControl(this);
+	cameraRoleControl->setTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CameraRole"));
+	for (const XBotGo::CameraRole role :
+	     {XBotGo::CameraRole::Center, XBotGo::CameraRole::Left, XBotGo::CameraRole::Right}) {
+		cameraRoleControl->addItem(QString::fromLatin1(XBotGo::CameraRoleSceneName(role)),
+					   static_cast<int>(role));
+	}
+	OBSBasic *main = OBSBasic::Get();
+	cameraRoleControl->setCurrentIndex(
+		CameraRoleControlIndex(main ? XBotGo::GetSourceCameraRole(*main, source) : std::nullopt));
+	connect(cameraRoleControl, &XBotGo::ComboBoxControl::currentIndexChanged, this, [this](int index) {
+		if (index < 0) {
+			return;
+		}
+
+		OBSBasic *main = OBSBasic::Get();
+		const int previousIndex = CameraRoleControlIndex(
+			main ? XBotGo::GetSourceCameraRole(*main, source) : std::nullopt);
+		const auto role = static_cast<XBotGo::CameraRole>(cameraRoleControl->currentData().toInt());
+		if (!main || !XBotGo::AssignSourceToCameraRoleScene(*main, source, role)) {
+			const QSignalBlocker blocker(cameraRoleControl);
+			cameraRoleControl->setCurrentIndex(previousIndex);
+		}
+	});
+
 	connection = new QLabel(this);
 	modeStatus = new QLabel(this);
 	modeSelector = new QComboBox(this);
@@ -214,8 +260,9 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 		[](int value) { return QStringLiteral("%1x").arg(value / 10.0, 0, 'f', 1); });
 	manualZoomSlider->setEnabled(false);
 	manualZoomStatus = new QLabel(this);
-	connection->setText(QTStr(obs_source_active(source) ? "Basic.MainMenu.XBotGo.DeviceManagement.Active"
-							    : "Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+	connection->setText(
+		QTStr(XBotGo::IsFalconMSourceConnected(source) ? "Basic.MainMenu.XBotGo.DeviceManagement.Connected"
+								 : "Basic.MainMenu.XBotGo.DeviceManagement.Disconnected"));
 
 	angles = new QLabel(this);
 	buzzerLongButton = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.LongBeep"), this);
@@ -229,6 +276,7 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	auto *grid = new QGridLayout;
 	const auto addButton = [this, grid](const QString &label, int row, int col, int direction) {
 		auto *button = new QPushButton(label, this);
+		directionButtons.emplace_back(button);
 		grid->addWidget(button, row, col);
 		connect(button, &QPushButton::pressed, this, [this, direction] { Send(direction, 1); });
 		connect(button, &QPushButton::released, this, [this, direction] { Send(direction, 2); });
@@ -240,6 +288,7 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	addButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Down"), 2, 1, 1);
 
 	auto *layout = new QVBoxLayout(this);
+	layout->addWidget(cameraRoleControl);
 	layout->addWidget(connection);
 	auto *modeLayout = new QHBoxLayout;
 	modeLayout->addWidget(new QLabel(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureMode"), this));
@@ -298,7 +347,7 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 		&OBSBasicFalconMControl::ApplyAngleRange);
 	connect(modeSelector, qOverload<int>(&QComboBox::currentIndexChanged), this,
 		&OBSBasicFalconMControl::SelectMode);
-	connect(buzzerLongButton, &QPushButton::clicked, this, [this] { SendBuzzerMode(3); });
+	connect(buzzerLongButton, &QPushButton::clicked, this, [this] { SendBuzzerMode(5); });
 	connect(hallCalibrationRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryHallCalibration);
 	connect(hallCalibrationStart, &QPushButton::clicked, this, &OBSBasicFalconMControl::StartHallCalibration);
 	connect(manualZoomSlider, &XBotGo::SliderControl::valueChanged, this,
@@ -328,7 +377,7 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	parametersTimeout->setSingleShot(true);
 	parametersTimeout->setInterval(5000);
 	connect(parametersTimeout, &QTimer::timeout, this, [this] {
-		parametersRefresh->setEnabled(obs_source_active(source));
+		parametersRefresh->setEnabled(XBotGo::IsFalconMSourceConnected(source));
 		parametersAutoZoom->setEnabled(false);
 		parametersAutoTracking->setEnabled(false);
 		parametersAngleRange->setEnabled(false);
@@ -338,11 +387,11 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	hallCalibrationTimeout->setSingleShot(true);
 	hallCalibrationTimeout->setInterval(5000);
 	connect(hallCalibrationTimeout, &QTimer::timeout, this, [this] {
-		const bool active = source && obs_source_active(source);
+		const bool connected = XBotGo::IsFalconMSourceConnected(source);
 		const bool calibrating = currentHallCalibrationStatus ==
 			static_cast<int>(xbotgo::falconm_hall_calibration_status::calibrating);
-		hallCalibrationRefresh->setEnabled(active);
-		hallCalibrationStart->setEnabled(active && !calibrating);
+		hallCalibrationRefresh->setEnabled(connected);
+		hallCalibrationStart->setEnabled(connected && !calibrating);
 		hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.HallCalibrationTimeout"));
 	});
 	manualZoomTimeout = new QTimer(this);
@@ -368,6 +417,10 @@ OBSBasicFalconMControl::~OBSBasicFalconMControl()
 
 void OBSBasicFalconMControl::Send(int direction, int operation)
 {
+	if (!XBotGo::IsFalconMSourceConnected(source)) {
+		return;
+	}
+
 	calldata_t cd;
 	calldata_init(&cd);
 	calldata_set_int(&cd, "direction", direction);
@@ -378,7 +431,7 @@ void OBSBasicFalconMControl::Send(int direction, int operation)
 
 void OBSBasicFalconMControl::SendBuzzerMode(int mode)
 {
-	if (!source || !obs_source_active(source)) {
+	if (!XBotGo::IsFalconMSourceConnected(source)) {
 		buzzerStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.BuzzerSendFailed"));
 		return;
 	}
@@ -396,10 +449,10 @@ void OBSBasicFalconMControl::SendBuzzerMode(int mode)
 
 void OBSBasicFalconMControl::QueryHallCalibration()
 {
-	if (!source || !obs_source_active(source)) {
+	if (!XBotGo::IsFalconMSourceConnected(source)) {
 		hallCalibrationRefresh->setEnabled(false);
 		hallCalibrationStart->setEnabled(false);
-		hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Disconnected"));
 		return;
 	}
 
@@ -432,7 +485,7 @@ void OBSBasicFalconMControl::QueryHallCalibration()
 
 void OBSBasicFalconMControl::StartHallCalibration()
 {
-	if (!source || !obs_source_active(source)) {
+	if (!XBotGo::IsFalconMSourceConnected(source)) {
 		return;
 	}
 
@@ -464,7 +517,7 @@ void OBSBasicFalconMControl::StartHallCalibration()
 
 void OBSBasicFalconMControl::UpdateHallCalibration()
 {
-	if (!source || !obs_source_active(source)) {
+	if (!XBotGo::IsFalconMSourceConnected(source)) {
 		return;
 	}
 
@@ -509,9 +562,9 @@ void OBSBasicFalconMControl::UpdateHallCalibration()
 
 void OBSBasicFalconMControl::QueryCurrentZoom()
 {
-	if (!source || !obs_source_active(source)) {
+	if (!XBotGo::IsFalconMSourceConnected(source)) {
 		manualZoomSlider->setEnabled(false);
-		manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Disconnected"));
 		return;
 	}
 
@@ -542,7 +595,7 @@ void OBSBasicFalconMControl::QueryCurrentZoom()
 
 void OBSBasicFalconMControl::UpdateCurrentZoom()
 {
-	if (!source || !obs_source_active(source)) {
+	if (!XBotGo::IsFalconMSourceConnected(source)) {
 		return;
 	}
 
@@ -607,7 +660,7 @@ bool OBSBasicFalconMControl::DisableAutoZoomForManualControl()
 
 void OBSBasicFalconMControl::ManualZoomValueChanged(int value)
 {
-	if (!source || !obs_source_active(source) || !hasCurrentManualZoom || !hasConfirmedCaptureParameters ||
+	if (!XBotGo::IsFalconMSourceConnected(source) || !hasCurrentManualZoom || !hasConfirmedCaptureParameters ||
 	    value < 10 || value > 30 || value == manualZoomCommandValue) {
 		return;
 	}
@@ -649,17 +702,17 @@ void OBSBasicFalconMControl::ManualZoomValueChanged(int value)
 
 void OBSBasicFalconMControl::UpdateManualZoomEnabled()
 {
-	const bool active = source && obs_source_active(source);
-	manualZoomSlider->setEnabled(active && hasCurrentManualZoom && hasConfirmedCaptureParameters &&
+	const bool connected = XBotGo::IsFalconMSourceConnected(source);
+	manualZoomSlider->setEnabled(connected && hasCurrentManualZoom && hasConfirmedCaptureParameters &&
 				     !parametersAutoZoom->isChecked());
 }
 
 void OBSBasicFalconMControl::QueryModes()
 {
-	if (!source || !obs_source_active(source)) {
+	if (!XBotGo::IsFalconMSourceConnected(source)) {
 		modeSelector->setEnabled(false);
 		modeRefresh->setEnabled(false);
-		modeStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		modeStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Disconnected"));
 		return;
 	}
 	calldata_t state;
@@ -689,12 +742,12 @@ void OBSBasicFalconMControl::QueryModes()
 
 void OBSBasicFalconMControl::QueryCaptureParameters()
 {
-	if (!source || !obs_source_active(source)) {
+	if (!XBotGo::IsFalconMSourceConnected(source)) {
 		parametersRefresh->setEnabled(false);
 		parametersAutoZoom->setEnabled(false);
 		parametersAutoTracking->setEnabled(false);
 		parametersAngleRange->setEnabled(false);
-		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Disconnected"));
 		return;
 	}
 	calldata_t state;
@@ -713,7 +766,7 @@ void OBSBasicFalconMControl::QueryCaptureParameters()
 	calldata_free(&cd);
 	if (!success) {
 		parametersTimeout->stop();
-		parametersRefresh->setEnabled(obs_source_active(source));
+		parametersRefresh->setEnabled(XBotGo::IsFalconMSourceConnected(source));
 		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CaptureParametersQueryFailed"));
 		return;
 	}
@@ -727,7 +780,8 @@ void OBSBasicFalconMControl::QueryCaptureParameters()
 
 void OBSBasicFalconMControl::ApplyAutoZoom(bool checked)
 {
-	if (!source || !obs_source_active(source) || !hasConfirmedCaptureParameters || checked == confirmedAutoZoom) {
+	if (!XBotGo::IsFalconMSourceConnected(source) || !hasConfirmedCaptureParameters ||
+	    checked == confirmedAutoZoom) {
 		return;
 	}
 
@@ -752,7 +806,7 @@ void OBSBasicFalconMControl::ApplyAutoZoom(bool checked)
 
 void OBSBasicFalconMControl::ApplyAutoTracking(bool checked)
 {
-	if (!source || !obs_source_active(source) || !hasConfirmedCaptureParameters ||
+	if (!XBotGo::IsFalconMSourceConnected(source) || !hasConfirmedCaptureParameters ||
 	    checked == confirmedAutoTracking) {
 		return;
 	}
@@ -777,7 +831,7 @@ void OBSBasicFalconMControl::ApplyAutoTracking(bool checked)
 
 void OBSBasicFalconMControl::ApplyAngleRange()
 {
-	if (!source || !obs_source_active(source) || !hasConfirmedCaptureParameters ||
+	if (!XBotGo::IsFalconMSourceConnected(source) || !hasConfirmedCaptureParameters ||
 	    parametersAngleRange->value() == confirmedAngleRange) {
 		return;
 	}
@@ -802,7 +856,7 @@ void OBSBasicFalconMControl::ApplyAngleRange()
 
 void OBSBasicFalconMControl::UpdateCaptureParameters()
 {
-	if (!source || !obs_source_active(source)) {
+	if (!XBotGo::IsFalconMSourceConnected(source)) {
 		return;
 	}
 	calldata_t cd;
@@ -925,7 +979,8 @@ void OBSBasicFalconMControl::UpdateModes()
 
 void OBSBasicFalconMControl::SelectMode(int index)
 {
-	if (index < 0 || waitingForModes || waitingForModeResult || !source || !obs_source_active(source)) {
+	if (index < 0 || waitingForModes || waitingForModeResult ||
+	    !XBotGo::IsFalconMSourceConnected(source)) {
 		return;
 	}
 	const int mode = modeSelector->itemData(index).toInt();
@@ -990,8 +1045,8 @@ void OBSBasicFalconMControl::RestoreConfirmedMode(const QString &status)
 	modeTimeout->stop();
 	const QSignalBlocker blocker(modeSelector);
 	modeSelector->setCurrentIndex(modeSelector->findData(confirmedMode));
-	modeSelector->setEnabled(obs_source_active(source) && modeSelector->count() > 0);
-	modeRefresh->setEnabled(obs_source_active(source));
+	modeSelector->setEnabled(XBotGo::IsFalconMSourceConnected(source) && modeSelector->count() > 0);
+	modeRefresh->setEnabled(XBotGo::IsFalconMSourceConnected(source));
 	modeStatus->setText(status);
 }
 
@@ -1000,12 +1055,16 @@ void OBSBasicFalconMControl::Refresh()
 	if (!source) {
 		return;
 	}
-	const bool active = obs_source_active(source);
-	connection->setText(QTStr(active ? "Basic.MainMenu.XBotGo.DeviceManagement.Active"
-					 : "Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
-	if (active) {
-		if (!sourceWasActive) {
-			sourceWasActive = true;
+	const bool connected = XBotGo::IsFalconMSourceConnected(source);
+	connection->setText(QTStr(connected ? "Basic.MainMenu.XBotGo.DeviceManagement.Connected"
+					    : "Basic.MainMenu.XBotGo.DeviceManagement.Disconnected"));
+	for (QPushButton *button : directionButtons) {
+		button->setEnabled(connected);
+	}
+	buzzerLongButton->setEnabled(connected);
+	if (connected) {
+		if (!sourceWasConnected) {
+			sourceWasConnected = true;
 			QueryModes();
 			QueryCaptureParameters();
 			QueryHallCalibration();
@@ -1017,7 +1076,7 @@ void OBSBasicFalconMControl::Refresh()
 		UpdateHallCalibration();
 		UpdateCurrentZoom();
 	} else {
-		sourceWasActive = false;
+		sourceWasConnected = false;
 		if (!waitingForModeResult) {
 			modeSelector->setEnabled(false);
 			modeRefresh->setEnabled(false);
@@ -1027,17 +1086,17 @@ void OBSBasicFalconMControl::Refresh()
 		parametersAutoTracking->setEnabled(false);
 		parametersAngleRange->setEnabled(false);
 		parametersTimeout->stop();
-		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		parametersStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Disconnected"));
 		hallCalibrationRefresh->setEnabled(false);
 		hallCalibrationStart->setEnabled(false);
 		hallCalibrationTimeout->stop();
-		hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		hallCalibrationStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Disconnected"));
 		hasCurrentManualZoom = false;
 		manualZoomDragging = false;
 		manualZoomSlider->setEnabled(false);
 		manualZoomTimeout->stop();
 		manualZoomQueryDebounce->stop();
-		manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Inactive"));
+		manualZoomStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Disconnected"));
 	}
 	calldata_t cd;
 	calldata_init(&cd);

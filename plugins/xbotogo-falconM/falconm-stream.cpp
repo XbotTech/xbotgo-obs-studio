@@ -209,6 +209,7 @@ public:
 		return result == 0;
 	}
 	bool isStreaming() const override { return streaming_; }
+	bool isConnected() const override { return connected_; }
 	void disconnect() override
 	{
 		send(SetMotorAngleReportingRequest{false});
