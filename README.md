@@ -118,7 +118,10 @@ cmake --build build_macos_xcode --config Debug --target obs-studio --parallel 8
 2. 在 OBS 主菜单选择 **XBotGo → 搜索设备**，确认设备能够被发现。
 3. 在来源面板新增 FalconM/XBotGo 来源。
 4. 在来源属性中选择搜索到的设备，确认设备 ID、IP/Broker 地址和 MQTT 端口。
-5. 添加来源后检查预览画面及音频电平；隐藏来源不会断开设备连接。
+5. 选择拉流分辨率（1080p/30、1080p/60 或 4K/30，默认 1080p/30），添加来源后检查预览画面及音频电平；隐藏来源不会断开设备连接。
+
+拉流档位依次对应：1080p/30 为 1920×1080、30 FPS、10 Mbps；1080p/60 为 1920×1080、60 FPS、10 Mbps；
+4K/30 为 3840×2160、30 FPS、52 Mbps。修改档位后 FalconM Source 会重连设备，使新编码参数生效。
 
 设备 SSDP 响应必须包含以下字段，且 `X-Device-IP` 必须与数据包来源 IPv4 地址一致：
 
