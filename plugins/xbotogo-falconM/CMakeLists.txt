@@ -17,6 +17,7 @@ add_library(xbotogo-falconM MODULE
   protocol/falcon-calibration.hpp
   protocol/falcon-camera-requests.hpp
   protocol/falcon-mode-requests.hpp
+  protocol/falcon-time-requests.hpp
   protocol/falcon-protocol-parser.hpp
   protocol/falcon-event.hpp
   protocol/falcon-events.hpp

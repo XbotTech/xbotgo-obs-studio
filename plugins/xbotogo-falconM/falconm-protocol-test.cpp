@@ -192,6 +192,32 @@ static void test_request_encoding()
 	assert(aor_without_table[78] == 0);
 }
 
+static void test_atr_encodes_clock_fields_and_timezone_id()
+{
+	const auto atr = RtcClockRequest{0x0102030405060708, -18000, "Asia/Shanghai"};
+	const auto payload = atr.encodePayload();
+
+	assert(atr.topic() == "ATR");
+	assert(payload.size() == 76);
+	const std::vector<uint8_t> expected_prefix = {
+		0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0xb0, 0xb9, 0xff, 0xff,
+	};
+	assert(std::equal(expected_prefix.begin(), expected_prefix.end(), payload.begin()));
+	assert(std::string(reinterpret_cast<const char *>(payload.data() + 12)) == "Asia/Shanghai");
+	assert(std::all_of(payload.begin() + 26, payload.end(), [](uint8_t value) { return value == 0; }));
+}
+
+static void test_atr_truncates_timezone_id_and_keeps_null_terminator()
+{
+	const auto atr = RtcClockRequest{0, 28800, std::string(80, 'x')};
+	const auto payload = atr.encodePayload();
+
+	const std::vector<uint8_t> expected_offset = {0x80, 0x70, 0x00, 0x00};
+	assert(std::equal(expected_offset.begin(), expected_offset.end(), payload.begin() + 8));
+	assert(std::all_of(payload.begin() + 12, payload.begin() + 75, [](uint8_t value) { return value == 'x'; }));
+	assert(payload[75] == 0);
+}
+
 static void test_ana_parses_capture_parameters()
 {
 	std::vector<uint8_t> payload = {
@@ -309,6 +335,8 @@ int main()
 	test_dfa_parses_limits_and_rejects_short_payloads();
 	test_basketball_mode_filter();
 	test_request_encoding();
+	test_atr_encodes_clock_fields_and_timezone_id();
+	test_atr_truncates_timezone_id_and_keeps_null_terminator();
 	test_ana_parses_capture_parameters();
 	test_event_classes_parse_responses();
 	return 0;
