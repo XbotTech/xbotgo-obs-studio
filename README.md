@@ -123,6 +123,12 @@ cmake --build build_macos_xcode --config Debug --target obs-studio --parallel 8
 拉流档位依次对应：1080p/30 为 1920×1080、30 FPS、10 Mbps；1080p/60 为 1920×1080、60 FPS、10 Mbps；
 4K/30 为 3840×2160、30 FPS、52 Mbps。修改档位后 FalconM Source 会重连设备，使新编码参数生效。
 
+在 **XBotGo → 设备管理** 中打开 FalconM 控制窗口后，可以将 Source 指定为 `XBotGo-Center`、
+`XBotGo-Left` 或 `XBotGo-Right`。首次指定角色时会创建对应的固定名称场景；Source 会保留原场景项的
+布局状态并移动到目标角色场景，同时从其他场景中移除。角色下拉框的空白项不会改变 Source 所在场景。
+角色切换不会改变 OBS 当前场景；控制窗口根据设备连接状态工作，因此 Source 位于非当前场景时仍可查询
+和控制设备。设备管理列表分别显示 Source 的场景激活状态和 FalconM 设备连接状态。
+
 设备 SSDP 响应必须包含以下字段，且 `X-Device-IP` 必须与数据包来源 IPv4 地址一致：
 
 ```text
