@@ -161,7 +161,7 @@ FalconM 的 info 日志由编译宏 `XBOTGO_FALCONM_INFO_LOG_ENABLED` 控制，�
 日志，不影响 warning 和 error 日志。info 日志消息包含精确到毫秒的本地时间。
 
 FalconM 协议层支持编码 `ATR` RTC 时钟指令，包括秒级 Unix 时间戳、UTC 偏移秒数和 IANA 时区 ID。
-当前仅提供指令编码，尚未在设备连接后自动发送；后续接入自动同步时需要避开 OBS 正在录制或直播的状态。
+FalconM 设备控制连接成功时会发送一次当前系统时间和时区；设备重连成功后会重新同步。
 
 ## 开发约定
 

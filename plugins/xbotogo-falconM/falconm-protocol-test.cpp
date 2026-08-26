@@ -1,8 +1,10 @@
 #include "falconm-protocol.hpp"
+#include "falconm-time.hpp"
 #include "protocol/falcon-events.hpp"
 
 #include <cassert>
 #include <cstdint>
+#include <ctime>
 #include <vector>
 
 using namespace xbotgo;
@@ -218,6 +220,17 @@ static void test_atr_truncates_timezone_id_and_keeps_null_terminator()
 	assert(payload[75] == 0);
 }
 
+static void test_system_rtc_clock_contains_current_timezone_data()
+{
+	const auto before = static_cast<uint64_t>(std::time(nullptr));
+	const auto clock = falconm_read_system_rtc_clock();
+	const auto after = static_cast<uint64_t>(std::time(nullptr));
+
+	assert(clock.timestamp >= before && clock.timestamp <= after);
+	assert(clock.timezone >= -24 * 60 * 60 && clock.timezone <= 24 * 60 * 60);
+	assert(!clock.timezone_id.empty());
+}
+
 static void test_ana_parses_capture_parameters()
 {
 	std::vector<uint8_t> payload = {
@@ -337,6 +350,7 @@ int main()
 	test_request_encoding();
 	test_atr_encodes_clock_fields_and_timezone_id();
 	test_atr_truncates_timezone_id_and_keeps_null_terminator();
+	test_system_rtc_clock_contains_current_timezone_data();
 	test_ana_parses_capture_parameters();
 	test_event_classes_parse_responses();
 	return 0;
