@@ -66,7 +66,9 @@ public:
 	using supported_modes_callback = std::function<void(const falconm_supported_modes &)>;
 
 	virtual ~FalconMStream() = default;
-	virtual bool connect(const std::string &device_id, const std::string &broker_address, uint16_t broker_port) = 0;
+	/* Encoder options are retained until the peer connects, then passed to startStreaming. */
+	virtual bool connect(const std::string &device_id, const std::string &broker_address, uint16_t broker_port,
+			     const falconm_video_encoder_options &encoder_options) = 0;
 	/* Unset encoder options retain the Media SDK's VideoEncoderNodeConfig defaults.
 	 * Explicit values must be positive; otherwise streaming fails without calling the SDK. */
 	virtual bool startStreaming(const uint32_t video_ssrc, const uint32_t audio_ssrc, const uint32_t data_ssrc,
