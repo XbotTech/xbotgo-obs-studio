@@ -4,6 +4,21 @@
 
 namespace xbotgo {
 
+enum class BuzzerMode : uint8_t {
+	Off = 0,
+	Beep200Ms = 1,
+	BeepTwice = 2,
+	Beep1000Ms = 3,
+	BeepTwiceLoop = 4,
+	Beep3000Ms = 5,
+};
+
+constexpr bool is_valid_buzzer_mode(long long mode)
+{
+	return mode >= static_cast<long long>(BuzzerMode::Off) &&
+	       mode <= static_cast<long long>(BuzzerMode::Beep3000Ms);
+}
+
 class SendDirectionRequest final : public FalconRequest {
 public:
 	SendDirectionRequest(falconm_direction direction, falconm_operation operation)
@@ -40,12 +55,12 @@ private:
 
 class SetBuzzerModeRequest final : public FalconRequest {
 public:
-	explicit SetBuzzerModeRequest(uint8_t mode) : mode_(mode) {}
+	explicit SetBuzzerModeRequest(BuzzerMode mode) : mode_(mode) {}
 	std::string_view topic() const override { return "AIR"; }
-	std::vector<uint8_t> encodePayload() const override { return {mode_}; }
+	std::vector<uint8_t> encodePayload() const override { return {static_cast<uint8_t>(mode_)}; }
 
 private:
-	uint8_t mode_;
+	BuzzerMode mode_;
 };
 
 class ManualZoomRequest final : public FalconRequest {

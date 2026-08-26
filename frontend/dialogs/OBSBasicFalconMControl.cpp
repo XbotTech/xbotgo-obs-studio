@@ -347,7 +347,8 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 		&OBSBasicFalconMControl::ApplyAngleRange);
 	connect(modeSelector, qOverload<int>(&QComboBox::currentIndexChanged), this,
 		&OBSBasicFalconMControl::SelectMode);
-	connect(buzzerLongButton, &QPushButton::clicked, this, [this] { SendBuzzerMode(5); });
+	connect(buzzerLongButton, &QPushButton::clicked, this,
+		[this] { SendBuzzerMode(xbotgo::BuzzerMode::Beep3000Ms); });
 	connect(hallCalibrationRefresh, &QPushButton::clicked, this, &OBSBasicFalconMControl::QueryHallCalibration);
 	connect(hallCalibrationStart, &QPushButton::clicked, this, &OBSBasicFalconMControl::StartHallCalibration);
 	connect(manualZoomSlider, &XBotGo::SliderControl::valueChanged, this,
@@ -429,7 +430,7 @@ void OBSBasicFalconMControl::Send(int direction, int operation)
 	calldata_free(&cd);
 }
 
-void OBSBasicFalconMControl::SendBuzzerMode(int mode)
+void OBSBasicFalconMControl::SendBuzzerMode(xbotgo::BuzzerMode mode)
 {
 	if (!XBotGo::IsFalconMSourceConnected(source)) {
 		buzzerStatus->setText(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.BuzzerSendFailed"));
@@ -438,7 +439,7 @@ void OBSBasicFalconMControl::SendBuzzerMode(int mode)
 
 	calldata_t cd;
 	calldata_init(&cd);
-	calldata_set_int(&cd, "mode", mode);
+	calldata_set_int(&cd, "mode", static_cast<long long>(mode));
 	proc_handler_call(obs_source_get_proc_handler(source), "set_buzzer_mode", &cd);
 	bool success = false;
 	calldata_get_bool(&cd, "success", &success);

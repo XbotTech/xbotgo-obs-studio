@@ -84,6 +84,7 @@ void set_buzzer_mode(int mode, out bool success)
 2 beep twice, 500 ms each with a 500 ms interval
 3 beep for 1000 ms
 4 repeat two 500 ms beeps with a 1000 ms interval between pairs
+5 beep for 3000 ms
 ```
 
 对应 MQTT 消息为 topic `AIR`，payload 为单字节 `mode`。循环行为由设备固件负责，OBS 只发送一次指令；发送 `mode=0` 可停止蜂鸣。

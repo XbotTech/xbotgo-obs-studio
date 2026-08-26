@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstdint>
 #include <ctime>
+#include <utility>
 #include <vector>
 
 using namespace xbotgo;
@@ -138,10 +139,20 @@ static void test_request_encoding()
 	assert(bxr.topic() == "BXR" && bxr.encodePayload() == std::vector<uint8_t>({0}));
 	const auto dgr = SetMotorAngleReportingRequest{true};
 	assert(dgr.topic() == "DGR" && dgr.encodePayload() == std::vector<uint8_t>({1}));
-	const auto air_short = SetBuzzerModeRequest{1};
-	assert(air_short.topic() == "AIR" && air_short.encodePayload() == std::vector<uint8_t>({1}));
-	const auto air_loop = SetBuzzerModeRequest{4};
-	assert(air_loop.topic() == "AIR" && air_loop.encodePayload() == std::vector<uint8_t>({4}));
+	for (const auto [mode, expected] : {
+		     std::pair{BuzzerMode::Off, uint8_t(0)},
+		     std::pair{BuzzerMode::Beep200Ms, uint8_t(1)},
+		     std::pair{BuzzerMode::BeepTwice, uint8_t(2)},
+		     std::pair{BuzzerMode::Beep1000Ms, uint8_t(3)},
+		     std::pair{BuzzerMode::BeepTwiceLoop, uint8_t(4)},
+		     std::pair{BuzzerMode::Beep3000Ms, uint8_t(5)},
+	     }) {
+		const auto air = SetBuzzerModeRequest{mode};
+		assert(air.topic() == "AIR" && air.encodePayload() == std::vector<uint8_t>({expected}));
+		assert(is_valid_buzzer_mode(expected));
+	}
+	assert(!is_valid_buzzer_mode(-1));
+	assert(!is_valid_buzzer_mode(6));
 	const auto anr = QueryCaptureParametersRequest{};
 	assert(anr.topic() == "ANR" && anr.encodePayload() == std::vector<uint8_t>({0}));
 	const auto axr = QueryDefaultCaptureParametersRequest{};

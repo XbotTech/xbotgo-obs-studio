@@ -3,6 +3,7 @@
 #include <QDialog>
 #include <obs.h>
 
+#include <cstdint>
 #include <vector>
 
 class QComboBox;
@@ -15,6 +16,10 @@ class QTimer;
 namespace XBotGo {
 class ComboBoxControl;
 class SliderControl;
+}
+
+namespace xbotgo {
+enum class BuzzerMode : uint8_t;
 }
 
 class OBSBasicFalconMControl : public QDialog {
@@ -83,7 +88,7 @@ public:
 
 private:
 	void Send(int direction, int operation);
-	void SendBuzzerMode(int mode);
+	void SendBuzzerMode(xbotgo::BuzzerMode mode);
 	void QueryHallCalibration();
 	void StartHallCalibration();
 	void UpdateHallCalibration();
