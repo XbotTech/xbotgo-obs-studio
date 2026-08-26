@@ -85,7 +85,7 @@ public:
 		event_factories_.emplace(DefaultCaptureParametersEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
 			return std::make_unique<DefaultCaptureParametersEvent>();
 		});
-//		disable_media_sdk_logging();
+		disable_media_sdk_logging();
 		bool initialized_now = false;
 		std::call_once(global_init_once_, [&initialized_now] {
 			global_init_result_ = blink::utils::GlobalInit::getInstance().init(blink::utils::GlobalConfig());
@@ -233,6 +233,7 @@ public:
 		return result == 0;
 	}
 	bool isStreaming() const override { return streaming_; }
+	bool isConnected() const override { return connected_; }
 	void disconnect() override
 	{
 		FALCONM_LOG_INFO(

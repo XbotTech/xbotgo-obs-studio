@@ -33,6 +33,7 @@ DeviceSearchDialog::DeviceSearchDialog(QWidget *parent, Mode mode_)
 	deviceTable->setSelectionBehavior(QAbstractItemView::SelectRows);
 	deviceTable->setSelectionMode(QAbstractItemView::SingleSelection);
 	deviceTable->setEditTriggers(QAbstractItemView::NoEditTriggers);
+	deviceTable->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
 	deviceTable->horizontalHeader()->setStretchLastSection(true);
 
 	auto refreshButton = new QPushButton(tr("&Refresh"));

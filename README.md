@@ -125,6 +125,12 @@ cmake --build build_macos_xcode --config Debug --target obs-studio --parallel 8
 FalconM 场景项在添加或加载时会自动等比适配基础画布并居中；新增时只适配新的 SceneItem，JSON 加载或基础画布变化时才全量适配。输入在 1920×1080 与 3840×2160 之间切换时沿用 `SCALE_INNER`，不会重复重置用户调整过的 SceneItem 变换。
 场景变换适配完成前，插件会清除缓存画面并暂时丢弃输入帧；日志会记录每个丢弃帧以及本轮和 Source 生命周期内的累计丢帧数。
 
+在 **XBotGo → 设备管理** 中打开 FalconM 控制窗口后，可以将 Source 指定为 `XBotGo-Center`、
+`XBotGo-Left` 或 `XBotGo-Right`。首次指定角色时会创建对应的固定名称场景；Source 会保留原场景项的
+布局状态并移动到目标角色场景，同时从其他场景中移除。角色下拉框的空白项不会改变 Source 所在场景。
+角色切换不会改变 OBS 当前场景；控制窗口根据设备连接状态工作，因此 Source 位于非当前场景时仍可查询
+和控制设备。设备管理列表分别显示 Source 的场景激活状态和 FalconM 设备连接状态。
+
 设备 SSDP 响应必须包含以下字段，且 `X-Device-IP` 必须与数据包来源 IPv4 地址一致：
 
 ```text

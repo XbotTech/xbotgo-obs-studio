@@ -626,6 +626,12 @@ static void falconm_send_direction(void *data, calldata_t *cd)
 							       static_cast<falconm_operation>(operation)}));
 }
 
+static void falconm_get_connection_state(void *data, calldata_t *cd)
+{
+	auto *d = static_cast<falconm_source *>(data);
+	calldata_set_bool(cd, "connected", d && d->stream && d->stream->isConnected());
+}
+
 static void falconm_query_angle(void *data, calldata_t *cd)
 {
 	auto *d = static_cast<falconm_source *>(data);
@@ -646,7 +652,7 @@ static void falconm_set_buzzer_mode(void *data, calldata_t *cd)
 {
 	auto *d = static_cast<falconm_source *>(data);
 	long long mode = -1;
-	if (!calldata_get_int(cd, "mode", &mode) || mode < 0 || mode > 4 || !d->stream) {
+	if (!calldata_get_int(cd, "mode", &mode) || mode < 0 || mode > 5 || !d->stream) {
 		calldata_set_bool(cd, "success", false);
 		return;
 	}
@@ -1017,6 +1023,7 @@ static void falconm_get_default_capture_supported_resolution(void *data, calldat
 void falconm_register_proc_handler(falconm_source *d)
 {
 	proc_handler_t *ph = obs_source_get_proc_handler(d->source);
+	proc_handler_add(ph, "void get_connection_state(out bool connected)", falconm_get_connection_state, d);
 	proc_handler_add(ph, "void send_direction(int direction, int operation, out bool success)",
 			 falconm_send_direction, d);
 	proc_handler_add(ph, "void query_motor_angle(out bool success)", falconm_query_angle, d);

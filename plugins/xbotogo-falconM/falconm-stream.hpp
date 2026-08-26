@@ -75,6 +75,8 @@ public:
 				    const falconm_video_encoder_options &encoder_options = {}) = 0;
 	virtual bool stopStreaming() = 0;
 	virtual bool isStreaming() const = 0;
+	/* Thread-safe. True while the control connection accepts device commands. */
+	virtual bool isConnected() const = 0;
 	virtual void disconnect() = 0;
 	virtual void setDecodedFrameCallback(decoded_callback callback) = 0;
 	virtual void setAudioCallback(audio_callback callback) = 0;
