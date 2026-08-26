@@ -122,6 +122,8 @@ cmake --build build_macos_xcode --config Debug --target obs-studio --parallel 8
 
 拉流档位依次对应：1080p/30 为 1920×1080、30 FPS、10 Mbps；1080p/60 为 1920×1080、60 FPS、10 Mbps；
 4K/30 为 3840×2160、30 FPS、52 Mbps。修改档位后 FalconM Source 会重连设备，使新编码参数生效。
+FalconM 场景项在添加或加载时会自动等比适配基础画布并居中；新增时只适配新的 SceneItem，JSON 加载或基础画布变化时才全量适配。输入在 1920×1080 与 3840×2160 之间切换时沿用 `SCALE_INNER`，不会重复重置用户调整过的 SceneItem 变换。
+场景变换适配完成前，插件会清除缓存画面并暂时丢弃输入帧；日志会记录每个丢弃帧以及本轮和 Source 生命周期内的累计丢帧数。
 
 设备 SSDP 响应必须包含以下字段，且 `X-Device-IP` 必须与数据包来源 IPv4 地址一致：
 
