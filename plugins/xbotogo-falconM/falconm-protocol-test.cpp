@@ -1,8 +1,11 @@
 #include "falconm-protocol.hpp"
+#include "falconm-time.hpp"
 #include "protocol/falcon-events.hpp"
 
 #include <cassert>
 #include <cstdint>
+#include <ctime>
+#include <utility>
 #include <vector>
 
 using namespace xbotgo;
@@ -136,10 +139,20 @@ static void test_request_encoding()
 	assert(bxr.topic() == "BXR" && bxr.encodePayload() == std::vector<uint8_t>({0}));
 	const auto dgr = SetMotorAngleReportingRequest{true};
 	assert(dgr.topic() == "DGR" && dgr.encodePayload() == std::vector<uint8_t>({1}));
-	const auto air_short = SetBuzzerModeRequest{1};
-	assert(air_short.topic() == "AIR" && air_short.encodePayload() == std::vector<uint8_t>({1}));
-	const auto air_loop = SetBuzzerModeRequest{4};
-	assert(air_loop.topic() == "AIR" && air_loop.encodePayload() == std::vector<uint8_t>({4}));
+	for (const auto [mode, expected] : {
+		     std::pair{BuzzerMode::Off, uint8_t(0)},
+		     std::pair{BuzzerMode::Beep200Ms, uint8_t(1)},
+		     std::pair{BuzzerMode::BeepTwice, uint8_t(2)},
+		     std::pair{BuzzerMode::Beep1000Ms, uint8_t(3)},
+		     std::pair{BuzzerMode::BeepTwiceLoop, uint8_t(4)},
+		     std::pair{BuzzerMode::Beep3000Ms, uint8_t(5)},
+	     }) {
+		const auto air = SetBuzzerModeRequest{mode};
+		assert(air.topic() == "AIR" && air.encodePayload() == std::vector<uint8_t>({expected}));
+		assert(is_valid_buzzer_mode(expected));
+	}
+	assert(!is_valid_buzzer_mode(-1));
+	assert(!is_valid_buzzer_mode(6));
 	const auto anr = QueryCaptureParametersRequest{};
 	assert(anr.topic() == "ANR" && anr.encodePayload() == std::vector<uint8_t>({0}));
 	const auto axr = QueryDefaultCaptureParametersRequest{};
@@ -190,6 +203,43 @@ static void test_request_encoding()
 	const auto aor_without_table = SetCaptureParametersRequest{settings}.encodePayload();
 	assert(aor_without_table.size() == 80);
 	assert(aor_without_table[78] == 0);
+}
+
+static void test_atr_encodes_clock_fields_and_timezone_id()
+{
+	const auto atr = RtcClockRequest{0x0102030405060708, -18000, "Asia/Shanghai"};
+	const auto payload = atr.encodePayload();
+
+	assert(atr.topic() == "ATR");
+	assert(payload.size() == 76);
+	const std::vector<uint8_t> expected_prefix = {
+		0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, 0xb0, 0xb9, 0xff, 0xff,
+	};
+	assert(std::equal(expected_prefix.begin(), expected_prefix.end(), payload.begin()));
+	assert(std::string(reinterpret_cast<const char *>(payload.data() + 12)) == "Asia/Shanghai");
+	assert(std::all_of(payload.begin() + 26, payload.end(), [](uint8_t value) { return value == 0; }));
+}
+
+static void test_atr_truncates_timezone_id_and_keeps_null_terminator()
+{
+	const auto atr = RtcClockRequest{0, 28800, std::string(80, 'x')};
+	const auto payload = atr.encodePayload();
+
+	const std::vector<uint8_t> expected_offset = {0x80, 0x70, 0x00, 0x00};
+	assert(std::equal(expected_offset.begin(), expected_offset.end(), payload.begin() + 8));
+	assert(std::all_of(payload.begin() + 12, payload.begin() + 75, [](uint8_t value) { return value == 'x'; }));
+	assert(payload[75] == 0);
+}
+
+static void test_system_rtc_clock_contains_current_timezone_data()
+{
+	const auto before = static_cast<uint64_t>(std::time(nullptr));
+	const auto clock = falconm_read_system_rtc_clock();
+	const auto after = static_cast<uint64_t>(std::time(nullptr));
+
+	assert(clock.timestamp >= before && clock.timestamp <= after);
+	assert(clock.timezone >= -24 * 60 * 60 && clock.timezone <= 24 * 60 * 60);
+	assert(!clock.timezone_id.empty());
 }
 
 static void test_ana_parses_capture_parameters()
@@ -309,6 +359,9 @@ int main()
 	test_dfa_parses_limits_and_rejects_short_payloads();
 	test_basketball_mode_filter();
 	test_request_encoding();
+	test_atr_encodes_clock_fields_and_timezone_id();
+	test_atr_truncates_timezone_id_and_keeps_null_terminator();
+	test_system_rtc_clock_contains_current_timezone_data();
 	test_ana_parses_capture_parameters();
 	test_event_classes_parse_responses();
 	return 0;

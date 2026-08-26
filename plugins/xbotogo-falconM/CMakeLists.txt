@@ -11,14 +11,17 @@ add_library(xbotogo-falconM MODULE
   xbotogo-falconM.cpp
   falconm-source.cpp
   falconm-stream.cpp
+  falconm-time.cpp
   falconm-log.hpp
   falconm.hpp
   falconm-stream.hpp
+  falconm-time.hpp
   falconm-protocol.hpp
   protocol/falcon-request.hpp
   protocol/falcon-calibration.hpp
   protocol/falcon-camera-requests.hpp
   protocol/falcon-mode-requests.hpp
+  protocol/falcon-time-requests.hpp
   protocol/falcon-protocol-parser.hpp
   protocol/falcon-event.hpp
   protocol/falcon-events.hpp
@@ -64,7 +67,10 @@ if(ENABLE_UNIT_TESTS)
   add_executable(falconm-protocol-test
     falconm-protocol-test.cpp
     falconm-protocol.hpp
+    falconm-time.cpp
+    falconm-time.hpp
   )
   target_include_directories(falconm-protocol-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+  target_link_libraries(falconm-protocol-test PRIVATE "-framework CoreFoundation")
   add_test(NAME falconm-protocol-test COMMAND falconm-protocol-test)
 endif()

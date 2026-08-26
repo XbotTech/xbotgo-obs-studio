@@ -1,5 +1,6 @@
 #include "falconm-stream.hpp"
 #include "falconm-log.hpp"
+#include "falconm-time.hpp"
 #include "protocol/falcon-events.hpp"
 #include <BLRTCServerSession.h>
 #include <GlobalInit.h>
@@ -398,6 +399,11 @@ private:
 		}
 		connected_ = status == rtcsdk::PEER_CONNECTION_STATUS_CONNECTED;
 		if (connected_) {
+			const auto clock = falconm_read_system_rtc_clock();
+			if (!send(RtcClockRequest{clock.timestamp, clock.timezone, clock.timezone_id})) {
+				blog(LOG_WARNING, "FalconM: this=%p uniqueID=%d failed to synchronize device RTC",
+				     (void *)this, instance_id_);
+			}
 			send(SetMotorAngleReportingRequest{true});
 			send(QueryMotorAngleRequest{});
 			send(QueryHallCalibrationRequest{});

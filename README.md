@@ -163,6 +163,9 @@ OBS 日志可从菜单 **帮助 → 日志文件 → 查看当前日志** 打开
 FalconM 的 info 日志由编译宏 `XBOTGO_FALCONM_INFO_LOG_ENABLED` 控制，默认值为 `1`；设为 `0` 可关闭 info
 日志，不影响 warning 和 error 日志。info 日志消息包含精确到毫秒的本地时间。
 
+FalconM 协议层支持编码 `ATR` RTC 时钟指令，包括秒级 Unix 时间戳、UTC 偏移秒数和 IANA 时区 ID。
+FalconM 设备控制连接成功时会发送一次当前系统时间和时区；设备重连成功后会重新同步。
+
 ## 开发约定
 
 - 避免直接修改与需求无关的上游 OBS 代码，业务代码优先放入 `frontend/xbotgo/`、`shared/xbotgo-device-discovery/` 或独立插件目录。
