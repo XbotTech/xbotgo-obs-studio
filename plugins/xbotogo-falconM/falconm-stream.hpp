@@ -52,10 +52,10 @@ struct falconm_device_state {
 };
 
 struct falconm_video_encoder_options {
-	std::optional<int> width;
-	std::optional<int> height;
-	std::optional<int> fps;
-	std::optional<int> bitrate;
+	std::optional<int> width = 3840;
+	std::optional<int> height = 2160;
+	std::optional<int> fps = 30;
+	std::optional<int> bitrate = 52 * 1000 * 1000;
 };
 
 class FalconMStream {
@@ -69,8 +69,8 @@ public:
 	/* Encoder options are retained until the peer connects, then passed to startStreaming. */
 	virtual bool connect(const std::string &device_id, const std::string &broker_address, uint16_t broker_port,
 			     const falconm_video_encoder_options &encoder_options) = 0;
-	/* Unset encoder options retain the Media SDK's VideoEncoderNodeConfig defaults.
-	 * Explicit values must be positive; otherwise streaming fails without calling the SDK. */
+	/* Empty encoder options default to 4K/30 at 52 Mbps. Explicit values must be
+	 * positive; otherwise streaming fails without calling the SDK. */
 	virtual bool startStreaming(const uint32_t video_ssrc, const uint32_t audio_ssrc, const uint32_t data_ssrc,
 				    const falconm_video_encoder_options &encoder_options = {}) = 0;
 	virtual bool stopStreaming() = 0;

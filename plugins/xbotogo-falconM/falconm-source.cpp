@@ -306,9 +306,9 @@ static StreamingResolution get_streaming_resolution(obs_data_t *settings)
 		return resolution;
 	}
 
-	blog(LOG_WARNING, "FalconM: invalid streaming resolution=%lld; falling back to 1080p/30",
+	blog(LOG_WARNING, "FalconM: invalid streaming resolution=%lld; falling back to 4K/30",
 	     obs_data_get_int(settings, STREAMING_RESOLUTION_SETTING));
-	return StreamingResolution::P1080;
+	return StreamingResolution::K4;
 }
 
 static falconm_video_encoder_options get_encoder_options(StreamingResolution resolution)
@@ -322,7 +322,7 @@ static falconm_video_encoder_options get_encoder_options(StreamingResolution res
 		return {3840, 2160, 30, 52 * 1000 * 1000};
 	}
 
-	return {1920, 1080, 30, 10 * 1000 * 1000};
+	return {3840, 2160, 30, 52 * 1000 * 1000};
 }
 
 static void log_source_callback_thread(const char *callback_name)
@@ -400,7 +400,7 @@ static void falconm_control_worker(falconm_source *d)
 		std::string broker_address;
 		std::string device_id;
 		uint16_t broker_port = DEFAULT_MQTT_PORT;
-		StreamingResolution streaming_resolution = StreamingResolution::P1080;
+		StreamingResolution streaming_resolution = StreamingResolution::K4;
 		uint64_t request_serial = 0;
 
 		{
@@ -1156,7 +1156,7 @@ static void falconm_defaults(obs_data_t *s)
 	obs_data_set_default_string(s, "broker_address", "");
 	obs_data_set_default_string(s, "device_id", "");
 	obs_data_set_default_int(s, "broker_port", DEFAULT_MQTT_PORT);
-	obs_data_set_default_int(s, STREAMING_RESOLUTION_SETTING, static_cast<long long>(StreamingResolution::P1080));
+	obs_data_set_default_int(s, STREAMING_RESOLUTION_SETTING, static_cast<long long>(StreamingResolution::K4));
 	FALCONM_LOG_INFO("FalconM: falconm_defaults settings=%p broker_address='%s' device_id='%s' broker_port=%lld",
 			 (void *)s, obs_data_get_string(s, "broker_address"), obs_data_get_string(s, "device_id"),
 			 obs_data_get_int(s, "broker_port"));

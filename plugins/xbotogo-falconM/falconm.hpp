@@ -44,7 +44,7 @@ struct falconm_source {
 	std::string device_id = "Xbt-F-6c092e";
 	std::string broker_address = "169.254.184.18";
 	uint16_t broker_port = 1883;
-	StreamingResolution streaming_resolution = StreamingResolution::P1080;
+	StreamingResolution streaming_resolution = StreamingResolution::K4;
 	uint32_t video_ssrc = 0;
 	uint32_t audio_ssrc = 0;
 	uint32_t last_base_width = 0;
