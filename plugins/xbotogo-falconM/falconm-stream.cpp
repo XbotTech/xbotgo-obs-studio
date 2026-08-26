@@ -76,7 +76,7 @@ public:
 		event_factories_.emplace(DefaultCaptureParametersEvent::kTopic, []() -> std::unique_ptr<FalconEvent> {
 			return std::make_unique<DefaultCaptureParametersEvent>();
 		});
-//		disable_media_sdk_logging();
+		disable_media_sdk_logging();
 		bool initialized_now = false;
 		std::call_once(global_init_once_, [&initialized_now] {
 			global_init_result_ = blink::utils::GlobalInit::getInstance().init(blink::utils::GlobalConfig());
@@ -313,24 +313,24 @@ private:
 
 		switch (d->type) {
 		case MEDIA_DATA_TYPE_VIDEO:
-			FALCONM_LOG_INFO(
-				"FalconM: this=%p uniqueID=%d onDecodedVideoFrame ssrc=%u data=%p format=%d "
-				"streaming=%s buffer=%p bufferObj=%p width=%d height=%d pts=%lld dts=%lld "
-				"fromNodeId=%d toNodeId=%d rotation=%d",
-				(void *)this, instance_id_, ssrc, (void *)d.get(), d->format,
-				streaming_ ? "true" : "false", (void *)d->buffer.get(), (void *)d->bufferObj.get(),
-				d->width, d->height, (long long)d->pts, (long long)d->dts, d->fromNodeId, d->toNodeId,
-				d->rotation);
+			// FALCONM_LOG_INFO(
+			// 	"FalconM: this=%p uniqueID=%d onDecodedVideoFrame ssrc=%u data=%p format=%d "
+			// 	"streaming=%s buffer=%p bufferObj=%p width=%d height=%d pts=%lld dts=%lld "
+			// 	"fromNodeId=%d toNodeId=%d rotation=%d",
+			// 	(void *)this, instance_id_, ssrc, (void *)d.get(), d->format,
+			// 	streaming_ ? "true" : "false", (void *)d->buffer.get(), (void *)d->bufferObj.get(),
+			// 	d->width, d->height, (long long)d->pts, (long long)d->dts, d->fromNodeId, d->toNodeId,
+			// 	d->rotation);
 			processDecodedVideoFrame(ssrc, *d);
 			return;
 		case MEDIA_DATA_TYPE_AUDIO:
-			FALCONM_LOG_INFO(
-				"FalconM: this=%p uniqueID=%d onDecodedAudioFrame ssrc=%u data=%p format=%d "
-				"streaming=%s buffer=%p sampleRate=%d channels=%d bitsPerSample=%d pts=%lld dts=%lld "
-				"fromNodeId=%d toNodeId=%d",
-				(void *)this, instance_id_, ssrc, (void *)d.get(), d->format,
-				streaming_ ? "true" : "false", (void *)d->buffer.get(), d->sampleRate, d->channels,
-				d->bitsPerSample, (long long)d->pts, (long long)d->dts, d->fromNodeId, d->toNodeId);
+			// FALCONM_LOG_INFO(
+			// 	"FalconM: this=%p uniqueID=%d onDecodedAudioFrame ssrc=%u data=%p format=%d "
+			// 	"streaming=%s buffer=%p sampleRate=%d channels=%d bitsPerSample=%d pts=%lld dts=%lld "
+			// 	"fromNodeId=%d toNodeId=%d",
+			// 	(void *)this, instance_id_, ssrc, (void *)d.get(), d->format,
+			// 	streaming_ ? "true" : "false", (void *)d->buffer.get(), d->sampleRate, d->channels,
+			// 	d->bitsPerSample, (long long)d->pts, (long long)d->dts, d->fromNodeId, d->toNodeId);
 			processDecodedAudioFrame(ssrc, *d);
 			return;
 		default:
