@@ -6,8 +6,13 @@
 #include <QApplication>
 #endif
 
+#ifdef XBOTGO_FRONTEND_API
+#include <obs-frontend-api.h>
+#endif
+
 #include <util/base.h>
 
+#include <algorithm>
 #include <limits>
 #include <pthread.h>
 #include <cstring>
@@ -17,6 +22,278 @@ namespace xbotgo {
 
 static constexpr uint16_t DEFAULT_MQTT_PORT = 1883;
 static constexpr char STREAMING_RESOLUTION_SETTING[] = "streaming_resolution";
+static constexpr char FALCONM_SOURCE_ID[] = "xbotogo_falconm";
+
+struct scene_fit_context {
+	obs_source_t *source;
+	uint32_t base_width;
+	uint32_t base_height;
+	size_t fitted_items = 0;
+};
+
+struct scene_fit_task_context {
+	obs_source_t *source;
+	bool fit_all;
+	std::vector<falconm_scene_item_key> items;
+};
+
+static bool pause_video_until_scene_fit_locked(falconm_source *data)
+{
+	if (!data->scene_fit_ready) {
+		return false;
+	}
+
+	data->scene_fit_ready = false;
+	data->scene_fit_dropped_frames = 0;
+	obs_source_output_video(data->source, nullptr);
+	return true;
+}
+
+static bool fit_falconm_scene_item_to_canvas(obs_sceneitem_t *item, obs_source_t *source, uint32_t base_width,
+					    uint32_t base_height)
+{
+	if (!item || obs_sceneitem_get_source(item) != source) {
+		return false;
+	}
+
+	obs_transform_info transform{};
+	vec2_set(&transform.pos, 0.0f, 0.0f);
+	vec2_set(&transform.scale, 1.0f, 1.0f);
+	transform.rot = 0.0f;
+	transform.alignment = OBS_ALIGN_LEFT | OBS_ALIGN_TOP;
+	vec2_set(&transform.bounds, static_cast<float>(base_width), static_cast<float>(base_height));
+	transform.bounds_type = OBS_BOUNDS_SCALE_INNER;
+	transform.bounds_alignment = OBS_ALIGN_CENTER;
+	transform.crop_to_bounds = false;
+
+	obs_sceneitem_crop crop{};
+	obs_sceneitem_defer_update_begin(item);
+	obs_sceneitem_set_info2(item, &transform);
+	obs_sceneitem_set_crop(item, &crop);
+	obs_sceneitem_defer_update_end(item);
+	return true;
+}
+
+static bool fit_falconm_scene_item(obs_scene_t *, obs_sceneitem_t *item, void *param)
+{
+	auto *context = static_cast<scene_fit_context *>(param);
+	if (!fit_falconm_scene_item_to_canvas(item, context->source, context->base_width, context->base_height)) {
+		return true;
+	}
+
+	++context->fitted_items;
+	return true;
+}
+
+static bool fit_falconm_scene(void *param, obs_source_t *scene_source)
+{
+	auto *context = static_cast<scene_fit_context *>(param);
+	obs_scene_t *scene = obs_group_or_scene_from_source(scene_source);
+	if (scene) {
+		obs_scene_enum_items(scene, fit_falconm_scene_item, context);
+	}
+	return true;
+}
+
+static bool fit_falconm_scene_item_key(const falconm_scene_item_key &key, scene_fit_context &context)
+{
+	obs_source_t *scene_source = obs_get_source_by_uuid(key.scene_uuid.c_str());
+	if (!scene_source) {
+		return false;
+	}
+
+	obs_scene_t *scene = obs_group_or_scene_from_source(scene_source);
+	obs_sceneitem_t *item = scene ? obs_scene_find_sceneitem_by_id(scene, key.item_id) : nullptr;
+	const bool fitted =
+		fit_falconm_scene_item_to_canvas(item, context.source, context.base_width, context.base_height);
+	obs_source_release(scene_source);
+	return fitted;
+}
+
+static bool has_pending_scene_fit(const falconm_source *data)
+{
+	return data->scene_fit_all_requested || !data->scene_fit_pending_items.empty();
+}
+
+static void restore_scene_fit_request(falconm_source *data, const scene_fit_task_context &task)
+{
+	std::lock_guard<std::mutex> lock(data->scene_fit_mutex);
+	if (task.fit_all) {
+		data->scene_fit_all_requested = true;
+	} else {
+		for (const auto &key : task.items) {
+			const auto duplicate = std::find_if(data->scene_fit_pending_items.begin(),
+							    data->scene_fit_pending_items.end(), [&](const auto &pending) {
+								    return pending.scene_uuid == key.scene_uuid &&
+									   pending.item_id == key.item_id;
+							    });
+			if (duplicate == data->scene_fit_pending_items.end()) {
+				data->scene_fit_pending_items.push_back(key);
+			}
+		}
+	}
+}
+
+static void fit_falconm_source_to_canvas(void *param)
+{
+	auto *task = static_cast<scene_fit_task_context *>(param);
+	obs_source_t *source = task->source;
+	auto *data = static_cast<falconm_source *>(obs_obj_get_data(source));
+
+	obs_video_info video_info{};
+	if (data && !obs_source_removed(source) && obs_get_video_info(&video_info) && video_info.base_width &&
+	    video_info.base_height) {
+		scene_fit_context context{source, video_info.base_width, video_info.base_height};
+		if (task->fit_all) {
+			obs_enum_scenes(fit_falconm_scene, &context);
+		} else {
+			for (const auto &key : task->items) {
+				context.fitted_items += fit_falconm_scene_item_key(key, context) ? 1 : 0;
+			}
+		}
+
+		uint64_t dropped_frames = 0;
+		uint64_t total_dropped_frames = 0;
+		bool ready = false;
+		{
+			std::lock_guard<std::mutex> lock(data->scene_fit_mutex);
+			if (task->fit_all) {
+				/* The full pass also covered item_add requests queued before
+				 * this UI task ran. */
+				data->scene_fit_pending_items.clear();
+			}
+			dropped_frames = data->scene_fit_dropped_frames;
+			total_dropped_frames = data->scene_fit_total_dropped_frames;
+			ready = !has_pending_scene_fit(data);
+			data->scene_fit_ready = ready;
+		}
+
+		FALCONM_LOG_INFO(
+			"FalconM: %s fitted %zu scene item(s) to %ux%u canvas; ready=%s dropped_frames=%llu "
+			"total_dropped_frames=%llu",
+			task->fit_all ? "full scene pass" : "new item pass", context.fitted_items,
+			video_info.base_width, video_info.base_height, ready ? "true" : "false",
+			static_cast<unsigned long long>(dropped_frames),
+			static_cast<unsigned long long>(total_dropped_frames));
+		if (context.fitted_items) {
+#ifdef XBOTGO_FRONTEND_API
+			obs_frontend_save();
+#endif
+		}
+	} else if (data && !obs_source_removed(source)) {
+		restore_scene_fit_request(data, *task);
+	}
+
+	if (data) {
+		data->scene_fit_task_pending.store(false, std::memory_order_release);
+	}
+	obs_source_release(source);
+	delete task;
+}
+
+static void request_falconm_scene_item_fit(obs_sceneitem_t *item)
+{
+	obs_source_t *source = item ? obs_sceneitem_get_source(item) : nullptr;
+	const char *source_id = source ? obs_source_get_id(source) : nullptr;
+	if (!source_id || strcmp(source_id, FALCONM_SOURCE_ID) != 0) {
+		return;
+	}
+
+	obs_scene_t *scene = obs_sceneitem_get_scene(item);
+	obs_source_t *scene_source = scene ? obs_scene_get_source(scene) : nullptr;
+	const char *scene_uuid = scene_source ? obs_source_get_uuid(scene_source) : nullptr;
+	if (!scene_uuid || !*scene_uuid) {
+		return;
+	}
+
+	auto *data = static_cast<falconm_source *>(obs_obj_get_data(source));
+	if (!data) {
+		return;
+	}
+
+	const falconm_scene_item_key key{scene_uuid, obs_sceneitem_get_id(item)};
+	bool paused = false;
+	{
+		std::lock_guard<std::mutex> lock(data->scene_fit_mutex);
+		const auto duplicate = std::find_if(data->scene_fit_pending_items.begin(),
+						    data->scene_fit_pending_items.end(), [&](const auto &pending) {
+							    return pending.scene_uuid == key.scene_uuid &&
+								   pending.item_id == key.item_id;
+						    });
+		if (duplicate == data->scene_fit_pending_items.end()) {
+			data->scene_fit_pending_items.push_back(key);
+		}
+		paused = pause_video_until_scene_fit_locked(data);
+	}
+
+	if (paused) {
+		FALCONM_LOG_INFO("FalconM: new scene item id=%lld; paused video output until its transform is fitted",
+				 static_cast<long long>(key.item_id));
+	}
+}
+
+static void scene_item_added(void *, calldata_t *params)
+{
+	auto *item = static_cast<obs_sceneitem_t *>(calldata_ptr(params, "item"));
+	request_falconm_scene_item_fit(item);
+}
+
+static void connect_scene_signals(obs_source_t *source)
+{
+	if (!obs_group_or_scene_from_source(source)) {
+		return;
+	}
+
+	signal_handler_t *handler = obs_source_get_signal_handler(source);
+	signal_handler_disconnect(handler, "item_add", scene_item_added, nullptr);
+	signal_handler_connect(handler, "item_add", scene_item_added, nullptr);
+}
+
+static void disconnect_scene_signals(obs_source_t *source)
+{
+	if (obs_group_or_scene_from_source(source)) {
+		signal_handler_disconnect(obs_source_get_signal_handler(source), "item_add", scene_item_added, nullptr);
+	}
+}
+
+static void source_created(void *, calldata_t *params)
+{
+	connect_scene_signals(static_cast<obs_source_t *>(calldata_ptr(params, "source")));
+}
+
+static bool connect_existing_scene(void *, obs_source_t *source)
+{
+	connect_scene_signals(source);
+	return true;
+}
+
+static bool disconnect_existing_scene(void *, obs_source_t *source)
+{
+	disconnect_scene_signals(source);
+	return true;
+}
+
+void falconm_scene_fitting_init()
+{
+	signal_handler_t *handler = obs_get_signal_handler();
+	if (!handler) {
+		return;
+	}
+	signal_handler_connect(handler, "source_create", source_created, nullptr);
+	signal_handler_connect(handler, "source_create_canvas", source_created, nullptr);
+	obs_enum_scenes(connect_existing_scene, nullptr);
+}
+
+void falconm_scene_fitting_shutdown()
+{
+	signal_handler_t *handler = obs_get_signal_handler();
+	if (!handler) {
+		return;
+	}
+	signal_handler_disconnect(handler, "source_create", source_created, nullptr);
+	signal_handler_disconnect(handler, "source_create_canvas", source_created, nullptr);
+	obs_enum_scenes(disconnect_existing_scene, nullptr);
+}
 
 static StreamingResolution get_streaming_resolution(obs_data_t *settings)
 {
@@ -29,9 +306,9 @@ static StreamingResolution get_streaming_resolution(obs_data_t *settings)
 		return resolution;
 	}
 
-	blog(LOG_WARNING, "FalconM: invalid streaming resolution=%lld; falling back to 1080p/30",
+	blog(LOG_WARNING, "FalconM: invalid streaming resolution=%lld; falling back to 4K/30",
 	     obs_data_get_int(settings, STREAMING_RESOLUTION_SETTING));
-	return StreamingResolution::P1080;
+	return StreamingResolution::K4;
 }
 
 static falconm_video_encoder_options get_encoder_options(StreamingResolution resolution)
@@ -45,7 +322,7 @@ static falconm_video_encoder_options get_encoder_options(StreamingResolution res
 		return {3840, 2160, 30, 52 * 1000 * 1000};
 	}
 
-	return {1920, 1080, 30, 10 * 1000 * 1000};
+	return {3840, 2160, 30, 52 * 1000 * 1000};
 }
 
 static void log_source_callback_thread(const char *callback_name)
@@ -77,10 +354,33 @@ static const char *falconm_get_name(void *)
 
 static void output_video(falconm_source *d, const obs_source_frame &in)
 {
-	if (d->stopping || !in.width || !in.height) {
+	if (!in.width || !in.height) {
 		return;
 	}
-	obs_source_output_video(d->source, &in);
+
+	uint64_t dropped_frames = 0;
+	uint64_t total_dropped_frames = 0;
+	{
+		std::lock_guard<std::mutex> lock(d->scene_fit_mutex);
+		if (d->stopping) {
+			return;
+		}
+
+		if (d->scene_fit_ready) {
+			obs_source_output_video(d->source, &in);
+			return;
+		}
+
+		dropped_frames = ++d->scene_fit_dropped_frames;
+		total_dropped_frames = ++d->scene_fit_total_dropped_frames;
+	}
+
+	FALCONM_LOG_INFO(
+		"FalconM: dropped video frame while waiting for scene transform; size=%ux%u timestamp=%llu "
+		"dropped_frames=%llu total_dropped_frames=%llu",
+		in.width, in.height, static_cast<unsigned long long>(in.timestamp),
+		static_cast<unsigned long long>(dropped_frames),
+		static_cast<unsigned long long>(total_dropped_frames));
 }
 
 static void output_audio(falconm_source *d, const obs_source_audio &in)
@@ -100,7 +400,7 @@ static void falconm_control_worker(falconm_source *d)
 		std::string broker_address;
 		std::string device_id;
 		uint16_t broker_port = DEFAULT_MQTT_PORT;
-		StreamingResolution streaming_resolution = StreamingResolution::P1080;
+		StreamingResolution streaming_resolution = StreamingResolution::K4;
 		uint64_t request_serial = 0;
 
 		{
@@ -195,7 +495,11 @@ static void falconm_destroy(void *p)
 	log_source_callback_thread("destroy");
 	auto *d = (falconm_source *)p;
 	d->stopping = true;
-	obs_source_output_video(d->source, nullptr);
+	{
+		std::lock_guard<std::mutex> lock(d->scene_fit_mutex);
+		d->scene_fit_ready = false;
+		obs_source_output_video(d->source, nullptr);
+	}
 	{
 		std::lock_guard<std::mutex> lock(d->control_mutex);
 		d->worker_stop = true;
@@ -246,6 +550,67 @@ static void falconm_update(void *p, obs_data_t *s)
 	if (notify_worker) {
 		d->control_cv.notify_one();
 	}
+}
+
+static void falconm_video_tick(void *p, float)
+{
+	auto *data = static_cast<falconm_source *>(p);
+	obs_video_info video_info{};
+	if (!obs_get_video_info(&video_info) || !video_info.base_width || !video_info.base_height) {
+		return;
+	}
+
+	if (data->last_base_width != video_info.base_width || data->last_base_height != video_info.base_height) {
+		data->last_base_width = video_info.base_width;
+		data->last_base_height = video_info.base_height;
+		bool paused = false;
+		{
+			std::lock_guard<std::mutex> lock(data->scene_fit_mutex);
+			paused = pause_video_until_scene_fit_locked(data);
+			data->scene_fit_all_requested = true;
+			data->scene_fit_pending_items.clear();
+		}
+		if (paused) {
+			FALCONM_LOG_INFO("FalconM: canvas changed to %ux%u; paused video output for a full scene fit",
+					 video_info.base_width, video_info.base_height);
+		}
+	}
+
+	{
+		std::lock_guard<std::mutex> lock(data->scene_fit_mutex);
+		if (!has_pending_scene_fit(data)) {
+			return;
+		}
+	}
+
+	bool expected = false;
+	if (!data->scene_fit_task_pending.compare_exchange_strong(expected, true, std::memory_order_acq_rel)) {
+		return;
+	}
+
+	obs_source_t *source = obs_source_get_ref(data->source);
+	if (!source) {
+		data->scene_fit_task_pending.store(false, std::memory_order_release);
+		return;
+	}
+
+	auto *task = new scene_fit_task_context{source, false, {}};
+	{
+		std::lock_guard<std::mutex> lock(data->scene_fit_mutex);
+		task->fit_all = data->scene_fit_all_requested;
+		data->scene_fit_all_requested = false;
+		if (!task->fit_all) {
+			task->items.swap(data->scene_fit_pending_items);
+		}
+	}
+
+	/* video_tick runs after scene collection JSON has applied transforms. In
+	 * OBS Studio, queue the mutation onto its UI thread as well. */
+#ifdef XBOTGO_FRONTEND_API
+	obs_queue_task(OBS_TASK_UI, fit_falconm_source_to_canvas, task, false);
+#else
+	fit_falconm_source_to_canvas(task);
+#endif
 }
 
 static void falconm_send_direction(void *data, calldata_t *cd)
@@ -798,7 +1163,7 @@ static void falconm_defaults(obs_data_t *s)
 	obs_data_set_default_string(s, "broker_address", "");
 	obs_data_set_default_string(s, "device_id", "");
 	obs_data_set_default_int(s, "broker_port", DEFAULT_MQTT_PORT);
-	obs_data_set_default_int(s, STREAMING_RESOLUTION_SETTING, static_cast<long long>(StreamingResolution::P1080));
+	obs_data_set_default_int(s, STREAMING_RESOLUTION_SETTING, static_cast<long long>(StreamingResolution::K4));
 	FALCONM_LOG_INFO("FalconM: falconm_defaults settings=%p broker_address='%s' device_id='%s' broker_port=%lld",
 			 (void *)s, obs_data_get_string(s, "broker_address"), obs_data_get_string(s, "device_id"),
 			 obs_data_get_int(s, "broker_port"));
@@ -806,7 +1171,7 @@ static void falconm_defaults(obs_data_t *s)
 	obs_data_set_default_string(s, "device_serial_number", "");
 }
 
-obs_source_info falconm_source_info = {.id = "xbotogo_falconm",
+obs_source_info falconm_source_info = {.id = FALCONM_SOURCE_ID,
 				       .type = OBS_SOURCE_TYPE_INPUT,
 //				       .output_flags = OBS_SOURCE_ASYNC_VIDEO | OBS_SOURCE_AUDIO|
 //						       OBS_SOURCE_SCENE_UNIQUE,
@@ -816,6 +1181,7 @@ obs_source_info falconm_source_info = {.id = "xbotogo_falconm",
 				       .destroy = falconm_destroy,
 				       .get_defaults = falconm_defaults,
 				       .get_properties = falconm_properties,
-				       .update = falconm_update};
+				       .update = falconm_update,
+				       .video_tick = falconm_video_tick};
 
 } // namespace xbotgo

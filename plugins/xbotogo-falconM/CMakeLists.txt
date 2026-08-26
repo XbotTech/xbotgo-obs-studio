@@ -48,8 +48,8 @@ target_link_libraries(xbotogo-falconM PRIVATE
 
 if(ENABLE_FRONTEND)
   find_package(Qt6 REQUIRED Widgets)
-  target_compile_definitions(xbotogo-falconM PRIVATE XBOTGO_DEVICE_DISCOVERY)
-  target_link_libraries(xbotogo-falconM PRIVATE OBS::xbotgo-device-discovery Qt::Widgets)
+  target_compile_definitions(xbotogo-falconM PRIVATE XBOTGO_DEVICE_DISCOVERY XBOTGO_FRONTEND_API)
+  target_link_libraries(xbotogo-falconM PRIVATE OBS::frontend-api OBS::xbotgo-device-discovery Qt::Widgets)
 endif()
 
 set_target_properties_obs(xbotogo-falconM PROPERTIES FOLDER plugins)
