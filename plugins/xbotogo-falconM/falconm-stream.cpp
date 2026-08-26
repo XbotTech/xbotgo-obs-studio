@@ -143,6 +143,7 @@ public:
 		}
 		device_id_ = device_id;
 		broker_address_ = broker_address;
+		broker_port_ = broker_port;
 		{
 			std::lock_guard<std::mutex> lock(encoder_options_mutex_);
 			encoder_options_ = encoder_options;
@@ -234,6 +235,12 @@ public:
 	bool isStreaming() const override { return streaming_; }
 	void disconnect() override
 	{
+		FALCONM_LOG_INFO(
+			"FalconM: this=%p uniqueID=%d disconnect controller_id='%s' device_id='%s' broker_address='%s' "
+			"broker_port=%u connected=%s streaming=%s",
+			(void *)this, instance_id_, controller_id_.c_str(), device_id_.c_str(), broker_address_.c_str(),
+			broker_port_, connected_.load(std::memory_order_relaxed) ? "true" : "false",
+			streaming_.load(std::memory_order_relaxed) ? "true" : "false");
 		send(SetMotorAngleReportingRequest{false});
 		stopStreaming();
 		if (session_ && connected_) {
@@ -710,7 +717,6 @@ private:
 		} else if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_AUDIO) {
 			session_->removeRemoteAudioPlayer(stream.ssrc);
 		}
-		streaming_ = false;
 		blog(LOG_WARNING, "FalconM: this=%p uniqueID=%d SRT stream deleted, ssrc=%u", (void *)this, instance_id_,
 		     stream.ssrc);
 	}
@@ -737,6 +743,7 @@ private:
 	const int instance_id_;
 	std::string device_id_;
 	std::string broker_address_;
+	uint16_t broker_port_ = 0;
 	std::string controller_id_ = "uuid";
 	std::mutex encoder_options_mutex_;
 	falconm_video_encoder_options encoder_options_;
