@@ -98,35 +98,19 @@ public:
 			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d Media SDK GlobalInit result=%d initialized_now=%s",
 			     (void *)this, instance_id_, global_init_result_, initialized_now ? "true" : "false");
 		}
-		session_ = rtcsdk::BLRTCServerSession::create(rtcsdk::RTC_SESSION_TYPE_DRAGONFLY);
-		if (session_) {
-			session_->addListener(this);
-			const int result = session_->startSession();
-			if (result == 0) {
-				session_started_ = true;
-			} else {
-				blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d BLRTCServerSession startSession failed, result=%d",
-				     (void *)this, instance_id_, result);
-			}
-		} else {
-			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d failed to create Dragonfly server session", (void *)this,
-			     instance_id_);
-		}
+#ifdef SESSION_CREATE_ONCE
+		createSession();
+#endif
 	}
 	~FalconMStreamSdk() override
 	{
 		FALCONM_LOG_INFO("FalconM: this=%p uniqueID=%d FalconMStreamSdk destructor", (void *)this,
 				 instance_id_);
 		disconnect();
-		if (session_ && session_started_) {
-			const int result = session_->stopSession();
-			if (result != 0) {
-				blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d BLRTCServerSession stopSession failed, result=%d",
-				     (void *)this, instance_id_, result);
-			}
-			session_started_ = false;
-		}
-		delete session_;
+#ifdef SESSION_CREATE_ONCE
+		std::lock_guard<std::mutex> lifecycle_lock(session_lifecycle_mutex_);
+		destroySession();
+#endif
 	}
 	bool connect(const std::string &device_id, const std::string &broker_address, uint16_t broker_port,
 		     const falconm_video_encoder_options &encoder_options) override
@@ -136,11 +120,32 @@ public:
 			"broker_port=%u",
 			(void *)this, instance_id_, controller_id_.c_str(), device_id.c_str(), broker_address.c_str(),
 			broker_port);
-		if (!session_ || !session_started_ || broker_address.empty() || device_id.empty()) {
-			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d invalid session or connection settings", (void *)this,
+		if (broker_address.empty() || device_id.empty()) {
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d invalid connection settings", (void *)this, instance_id_);
+			return false;
+		}
+
+		std::lock_guard<std::mutex> lifecycle_lock(session_lifecycle_mutex_);
+#ifdef SESSION_CREATE_ONCE
+		if (connected_ || streaming_) {
+			disconnectSession(false);
+		}
+#else
+		/* A failed or incomplete previous connection must not leak state into
+		 * the next one. */
+		disconnectSession(true);
+		if (!createSession()) {
+			return false;
+		}
+#endif
+
+		auto session = sessionSnapshot();
+		if (!session) {
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d connect has no active session", (void *)this,
 			     instance_id_);
 			return false;
 		}
+		disconnecting_ = false;
 		device_id_ = device_id;
 		broker_address_ = broker_address;
 		broker_port_ = broker_port;
@@ -154,9 +159,13 @@ public:
 		c.deviceId = device_id_;
 		c.ipv4List.push_back(broker_address);
 		c.mqttBrokerPort = broker_port;
-		if (session_->connectPeerSession(c) != 0) {
+		if (session->connectPeerSession(c) != 0) {
 			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d connectPeerSession failed for device '%s'", (void *)this,
 			     instance_id_, device_id_.c_str());
+			connected_ = false;
+#ifndef SESSION_CREATE_ONCE
+			destroySession();
+#endif
 			return false;
 		}
 		connected_ = true;
@@ -167,8 +176,13 @@ public:
 			    const uint32_t data_ssrc = kDefaultDataSsrc,
 			    const falconm_video_encoder_options &encoder_options = {}) override
 	{
+		std::lock_guard<std::mutex> stream_lock(streaming_mutex_);
 		if (!connected_ || streaming_) {
 			return connected_ && streaming_;
+		}
+		auto session = sessionSnapshot();
+		if (!session || disconnecting_) {
+			return false;
 		}
 		const auto valid_encoder_option = [](const std::optional<int> &value) {
 			return !value || *value > 0;
@@ -208,7 +222,7 @@ public:
 			p.videoEncodeCfg.fps, p.videoEncodeCfg.bitrate);
 		fpsVideoFrameCount_.store(0, std::memory_order_relaxed);
 		fpsStartTimeMs_.store(current_time_ms(), std::memory_order_relaxed);
-		if (session_->startPullStream(device_id_, p) != 0) {
+		if (session->startPullStream(device_id_, p) != 0) {
 			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d startPullStream failed for device '%s'", (void *)this,
 			     instance_id_, device_id_.c_str());
 			fpsStartTimeMs_.store(0, std::memory_order_relaxed);
@@ -219,10 +233,12 @@ public:
 	}
 	bool stopStreaming() override
 	{
+		std::lock_guard<std::mutex> stream_lock(streaming_mutex_);
 		if (!streaming_) {
 			return true;
 		}
-		const int result = session_->stopPullStream(device_id_);
+		auto session = sessionSnapshot();
+		const int result = session ? session->stopPullStream(device_id_) : -1;
 		streaming_ = false;
 		fpsVideoFrameCount_.store(0, std::memory_order_relaxed);
 		fpsStartTimeMs_.store(0, std::memory_order_relaxed);
@@ -236,18 +252,12 @@ public:
 	bool isConnected() const override { return connected_; }
 	void disconnect() override
 	{
-		FALCONM_LOG_INFO(
-			"FalconM: this=%p uniqueID=%d disconnect controller_id='%s' device_id='%s' broker_address='%s' "
-			"broker_port=%u connected=%s streaming=%s",
-			(void *)this, instance_id_, controller_id_.c_str(), device_id_.c_str(), broker_address_.c_str(),
-			broker_port_, connected_.load(std::memory_order_relaxed) ? "true" : "false",
-			streaming_.load(std::memory_order_relaxed) ? "true" : "false");
-		send(SetMotorAngleReportingRequest{false});
-		stopStreaming();
-		if (session_ && connected_) {
-			session_->disconnectPeerSession(device_id_);
-		}
-		connected_ = false;
+		std::lock_guard<std::mutex> lifecycle_lock(session_lifecycle_mutex_);
+#ifdef SESSION_CREATE_ONCE
+		disconnectSession(false);
+#else
+		disconnectSession(true);
+#endif
 	}
 	void setDecodedFrameCallback(decoded_callback cb) override { decoded_cb_ = std::move(cb); }
 	void setAudioCallback(audio_callback cb) override { audio_cb_ = std::move(cb); }
@@ -260,7 +270,8 @@ public:
 	bool send(const FalconRequest &request) override
 	{
 		const auto payload = request.encodePayload();
-		if (!session_ || !connected_) {
+		auto session = sessionSnapshot();
+		if (!session || !connected_ || disconnecting_) {
 			return false;
 		}
 		rtcsdk::MQTTMessage m;
@@ -271,7 +282,7 @@ public:
 		FALCONM_LOG_INFO(
 			"FalconM: this=%p uniqueID=%d sendPeerMessage device='%s' topic='%s' payloadlen=%u payload=%s",
 			(void *)this, instance_id_, device_id_.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
-		return session_->sendPeerMessage(device_id_, m) == 0;
+		return session->sendPeerMessage(device_id_, m) == 0;
 	}
 	falconm_device_state state() const override
 	{
@@ -294,6 +305,82 @@ public:
 	}
 
 private:
+	using session_handle = std::shared_ptr<rtcsdk::BLRTCServerSession>;
+
+	session_handle sessionSnapshot() const
+	{
+		std::lock_guard<std::mutex> lock(session_mutex_);
+		return session_;
+	}
+
+	bool createSession()
+	{
+		auto session = session_handle(rtcsdk::BLRTCServerSession::create(rtcsdk::RTC_SESSION_TYPE_DRAGONFLY));
+		if (!session) {
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d failed to create Dragonfly server session", (void *)this,
+			     instance_id_);
+			return false;
+		}
+
+		session->addListener(this);
+		const int result = session->startSession();
+		if (result != 0) {
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d BLRTCServerSession startSession failed, result=%d",
+			     (void *)this, instance_id_, result);
+			return false;
+		}
+
+		{
+			std::lock_guard<std::mutex> lock(session_mutex_);
+			session_ = std::move(session);
+		}
+		FALCONM_LOG_INFO("FalconM: this=%p uniqueID=%d created and started a clean server session", (void *)this,
+				 instance_id_);
+		return true;
+	}
+
+	void destroySession()
+	{
+		session_handle session;
+		{
+			std::lock_guard<std::mutex> lock(session_mutex_);
+			session.swap(session_);
+		}
+		if (!session) {
+			return;
+		}
+
+		const int result = session->stopSession();
+		if (result != 0) {
+			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d BLRTCServerSession stopSession failed, result=%d",
+			     (void *)this, instance_id_, result);
+		}
+		FALCONM_LOG_INFO("FalconM: this=%p uniqueID=%d stopped and destroyed server session", (void *)this,
+				 instance_id_);
+	}
+
+	void disconnectSession(bool destroy_session)
+	{
+		FALCONM_LOG_INFO(
+			"FalconM: this=%p uniqueID=%d disconnect controller_id='%s' device_id='%s' broker_address='%s' "
+			"broker_port=%u connected=%s streaming=%s",
+			(void *)this, instance_id_, controller_id_.c_str(), device_id_.c_str(), broker_address_.c_str(),
+			broker_port_, connected_.load(std::memory_order_relaxed) ? "true" : "false",
+			streaming_.load(std::memory_order_relaxed) ? "true" : "false");
+		send(SetMotorAngleReportingRequest{false});
+		disconnecting_ = true;
+		stopStreaming();
+		auto session = sessionSnapshot();
+		const bool was_connected = connected_.exchange(false);
+		if (session && was_connected) {
+			session->disconnectPeerSession(device_id_);
+		}
+		if (destroy_session) {
+			destroySession();
+		}
+		disconnecting_ = false;
+	}
+
 	void onPeerDevicesRefresh(rtcsdk::BLNSPClient &client) override
 	{
 		FALCONM_LOG_INFO("FalconM: this=%p uniqueID=%d onPeerDevicesRefresh client=%s", (void *)this,
@@ -305,6 +392,10 @@ private:
 			"FalconM: this=%p uniqueID=%d onPeerConnectStatus client=%s status=%d device_id='%s' "
 			"broker_address='%s'",
 			(void *)this, instance_id_, client.name.c_str(), status, device_id_.c_str(), broker_address_.c_str());
+		if (disconnecting_) {
+			connected_ = false;
+			return;
+		}
 		connected_ = status == rtcsdk::PEER_CONNECTION_STATUS_CONNECTED;
 		if (connected_) {
 			send(SetMotorAngleReportingRequest{true});
@@ -691,6 +782,12 @@ private:
 			(void *)this, instance_id_, stream.ssrc, stream.mediaType, stream.mediaFormat);
 		/* Wires up the SDK-internal decode pipeline (VideoDecoderIos/AudioDecoderIos);
 		 * no surface/renderer is created on mac, only on Android. */
+		auto session = sessionSnapshot();
+		if (!session) {
+			blog(LOG_WARNING, "FalconM: this=%p uniqueID=%d new SRT stream ignored because session is null",
+			     (void *)this, instance_id_);
+			return;
+		}
 		if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO) {
 			rtcsdk::VideoRenderParams video_render_params;
 			{
@@ -704,19 +801,20 @@ private:
 				"FalconM: this=%p uniqueID=%d [socket_source] add video surface ssrc=%u output=%dx%d",
 				(void *)this, instance_id_, stream.ssrc, video_render_params.liveOutputWidth,
 				video_render_params.liveOutputHeight);
-			session_->addSurface(stream.ssrc, video_render_params);
+			session->addSurface(stream.ssrc, video_render_params);
 		} else if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_AUDIO) {
-			session_->addRemoteAudioPlayer(stream.ssrc);
+			session->addRemoteAudioPlayer(stream.ssrc);
 		}
 	}
 	void onDeleteSrtStream(const MediaStreamInfo &stream) override
 	{
 		FALCONM_LOG_INFO("FalconM: this=%p uniqueID=%d onDeleteSrtStream ssrc=%u", (void *)this, instance_id_,
 				 stream.ssrc);
-		if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO) {
-			session_->removeSurface(stream.ssrc);
-		} else if (stream.mediaType == blink::media::MEDIA_DATA_TYPE_AUDIO) {
-			session_->removeRemoteAudioPlayer(stream.ssrc);
+		auto session = sessionSnapshot();
+		if (session && stream.mediaType == blink::media::MEDIA_DATA_TYPE_VIDEO) {
+			session->removeSurface(stream.ssrc);
+		} else if (session && stream.mediaType == blink::media::MEDIA_DATA_TYPE_AUDIO) {
+			session->removeRemoteAudioPlayer(stream.ssrc);
 		}
 		blog(LOG_WARNING, "FalconM: this=%p uniqueID=%d SRT stream deleted, ssrc=%u", (void *)this, instance_id_,
 		     stream.ssrc);
@@ -736,8 +834,10 @@ private:
 		}
 	}
 
-	rtcsdk::BLRTCServerSession *session_ = nullptr;
-	bool session_started_ = false;
+	mutable std::mutex session_mutex_;
+	std::mutex session_lifecycle_mutex_;
+	std::mutex streaming_mutex_;
+	session_handle session_;
 	static int uniqueID;
 	static std::once_flag global_init_once_;
 	static int global_init_result_;
@@ -751,6 +851,7 @@ private:
 	std::unordered_map<std::string, falcon_event_factory> event_factories_;
 	std::atomic<bool> connected_{false};
 	std::atomic<bool> streaming_{false};
+	std::atomic<bool> disconnecting_{false};
 	std::atomic<int64_t> fpsStartTimeMs_{0};
 	std::atomic<uint64_t> fpsVideoFrameCount_{0};
 	mutable std::mutex angle_mutex_;
