@@ -10,7 +10,6 @@ class QComboBox;
 class QCheckBox;
 class QLabel;
 class QPushButton;
-class QString;
 class QTimer;
 
 namespace XBotGo {
@@ -26,38 +25,17 @@ class OBSBasicFalconMControl : public QDialog {
 	Q_OBJECT
 	obs_source_t *source = nullptr;
 	XBotGo::ComboBoxControl *cameraRoleControl = nullptr;
-	QLabel *connection = nullptr;
 	QLabel *angles = nullptr;
 	std::vector<QPushButton *> directionButtons;
 	QPushButton *buzzerLongButton = nullptr;
-	QLabel *buzzerStatus = nullptr;
-	QLabel *hallCalibrationStatus = nullptr;
-	QPushButton *hallCalibrationRefresh = nullptr;
 	QPushButton *hallCalibrationStart = nullptr;
-	QLabel *modeStatus = nullptr;
 	QComboBox *modeSelector = nullptr;
-	QPushButton *modeRefresh = nullptr;
-	QPushButton *parametersRefresh = nullptr;
-	QLabel *parametersStatus = nullptr;
-	QLabel *parametersMode = nullptr;
-	QLabel *parametersResolution = nullptr;
-	QLabel *parametersResolutionId = nullptr;
-	QLabel *parametersWatermark = nullptr;
-	QLabel *parametersMute = nullptr;
 	QCheckBox *parametersAutoZoom = nullptr;
 	QCheckBox *parametersAutoTracking = nullptr;
 	XBotGo::SliderControl *parametersAngleRange = nullptr;
-	QLabel *parametersAccelSpeed = nullptr;
-	QLabel *parametersCountdown = nullptr;
-	QLabel *parametersFlicker = nullptr;
-	QLabel *parametersSupportedResolutions = nullptr;
 	XBotGo::SliderControl *manualZoomSlider = nullptr;
-	QLabel *manualZoomStatus = nullptr;
-	QTimer *poller = nullptr;
 	QTimer *modeTimeout = nullptr;
-	QTimer *parametersTimeout = nullptr;
 	QTimer *hallCalibrationTimeout = nullptr;
-	QTimer *manualZoomTimeout = nullptr;
 	QTimer *manualZoomQueryDebounce = nullptr;
 	uint64_t modeQuerySequence = 0;
 	uint64_t modeResultSequence = 0;
@@ -69,7 +47,6 @@ class OBSBasicFalconMControl : public QDialog {
 	uint64_t manualZoomQuerySequence = 0;
 	uint64_t displayedManualZoomSequence = 0;
 	int currentHallCalibrationStatus = -1;
-	int currentManualZoom = 10;
 	int manualZoomCommandValue = 10;
 	int confirmedMode = -1;
 	int confirmedAngleRange = 0;
@@ -106,6 +83,6 @@ private:
 	void UpdateCaptureParameters();
 	void SelectMode(int index);
 	void HandleModeResult();
-	void RestoreConfirmedMode(const QString &status);
+	void RestoreConfirmedMode();
 	void Refresh();
 };
