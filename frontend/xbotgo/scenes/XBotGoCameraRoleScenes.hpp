@@ -6,7 +6,7 @@
 
 class OBSBasic;
 
-namespace XBotGo {
+namespace xbotgo {
 
 enum class CameraRole {
 	Center,
@@ -26,4 +26,4 @@ std::optional<CameraRole> GetSourceCameraRole(OBSBasic &main, obs_source_t *sour
 // removing existing items when the target scene cannot be prepared.
 bool AssignSourceToCameraRoleScene(OBSBasic &main, obs_source_t *source, CameraRole role);
 
-} // namespace XBotGo
+} // namespace xbotgo

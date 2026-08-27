@@ -705,7 +705,7 @@ void OBSBasic::StartXBotGoStreaming()
 	ui->actionXBotGoStartStreaming->setText(QTStr("Basic.MainMenu.XBotGo.StartStreaming.Fetching"));
 
 	xbotgoLiveStreamProvider->requestLiveStreamConfig(
-		this, [this](std::optional<XBotGo::LiveStreamConfig> config, const QString &error) {
+		this, [this](std::optional<xbotgo::LiveStreamConfig> config, const QString &error) {
 			ui->actionXBotGoStartStreaming->setText(QTStr("Basic.MainMenu.XBotGo.StartStreaming"));
 
 			if (!config) {
@@ -716,7 +716,7 @@ void OBSBasic::StartXBotGoStreaming()
 				return;
 			}
 
-			XBotGo::LiveStreamConfigDialog dialog(*config, this);
+			xbotgo::LiveStreamConfigDialog dialog(*config, this);
 			if (dialog.exec() != QDialog::Accepted) {
 				ui->actionXBotGoStartStreaming->setEnabled(true);
 				return;
@@ -726,7 +726,7 @@ void OBSBasic::StartXBotGoStreaming()
 		});
 }
 
-void OBSBasic::ApplyXBotGoLiveStreamConfig(const XBotGo::LiveStreamConfig &config)
+void OBSBasic::ApplyXBotGoLiveStreamConfig(const xbotgo::LiveStreamConfig &config)
 {
 	OBSDataAutoRelease settings = obs_data_create();
 	obs_data_set_string(settings, "server", QT_TO_UTF8(config.pushServer));

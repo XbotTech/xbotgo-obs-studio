@@ -12,7 +12,7 @@ class QLabel;
 class QPushButton;
 class QTimer;
 
-namespace XBotGo {
+namespace xbotgo {
 class ComboBoxControl;
 class SliderControl;
 }
@@ -24,7 +24,7 @@ enum class BuzzerMode : uint8_t;
 class OBSBasicFalconMControl : public QDialog {
 	Q_OBJECT
 	obs_source_t *source = nullptr;
-	XBotGo::ComboBoxControl *cameraRoleControl = nullptr;
+	xbotgo::ComboBoxControl *cameraRoleControl = nullptr;
 	QLabel *angles = nullptr;
 	std::vector<QPushButton *> directionButtons;
 	QPushButton *buzzerLongButton = nullptr;
@@ -32,8 +32,8 @@ class OBSBasicFalconMControl : public QDialog {
 	QComboBox *modeSelector = nullptr;
 	QCheckBox *parametersAutoZoom = nullptr;
 	QCheckBox *parametersAutoTracking = nullptr;
-	XBotGo::SliderControl *parametersAngleRange = nullptr;
-	XBotGo::SliderControl *manualZoomSlider = nullptr;
+	xbotgo::SliderControl *parametersAngleRange = nullptr;
+	xbotgo::SliderControl *manualZoomSlider = nullptr;
 	QTimer *modeTimeout = nullptr;
 	QTimer *hallCalibrationTimeout = nullptr;
 	QTimer *manualZoomQueryDebounce = nullptr;

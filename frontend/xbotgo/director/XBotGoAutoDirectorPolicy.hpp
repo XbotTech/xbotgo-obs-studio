@@ -5,7 +5,7 @@
 #include <chrono>
 #include <optional>
 
-namespace XBotGo::AutoDirectorPolicy {
+namespace xbotgo::AutoDirectorPolicy {
 
 constexpr double LeftAngleBoundary = -30.0;
 constexpr double RightAngleBoundary = 30.0;
@@ -43,4 +43,4 @@ inline bool IsSwitchCoolingDown(std::optional<std::chrono::steady_clock::time_po
 	return lastSwitch && now - *lastSwitch < SwitchCooldown;
 }
 
-} // namespace XBotGo::AutoDirectorPolicy
+} // namespace xbotgo::AutoDirectorPolicy

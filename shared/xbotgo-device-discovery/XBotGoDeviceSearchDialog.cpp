@@ -13,7 +13,7 @@
 #include <QTableView>
 #include <QVBoxLayout>
 
-namespace XBotGo {
+namespace xbotgo {
 
 #define SSDP_QUERY_IP "239.255.255.250"
 
@@ -257,4 +257,4 @@ void DeviceSearchDialog::readPendingDatagrams()
 	}
 }
 
-} // namespace XBotGo
+} // namespace xbotgo

@@ -97,7 +97,7 @@ void OBSBasicFalconMDevices::ReloadDevices()
 							     : "Basic.MainMenu.XBotGo.DeviceManagement.Inactive")));
 			table->setItem(
 				row, 3,
-				new QTableWidgetItem(QTStr(XBotGo::IsFalconMSourceConnected(source)
+				new QTableWidgetItem(QTStr(xbotgo::IsFalconMSourceConnected(source)
 							   ? "Basic.MainMenu.XBotGo.DeviceManagement.Connected"
 							   : "Basic.MainMenu.XBotGo.DeviceManagement.Disconnected")));
 			return true;

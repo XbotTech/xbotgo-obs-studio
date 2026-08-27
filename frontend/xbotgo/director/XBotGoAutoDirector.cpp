@@ -14,7 +14,7 @@
 
 #include <cmath>
 
-namespace XBotGo {
+namespace xbotgo {
 namespace {
 
 const char *CameraRoleName(CameraRole role)
@@ -289,4 +289,4 @@ void AutoDirector::processMotorAngle(
 	     CameraRoleName(targetRole), horizontal);
 }
 
-} // namespace XBotGo
+} // namespace xbotgo

@@ -28,18 +28,18 @@
 namespace {
 constexpr int FalconMModeProtocolVersion = 3;
 
-int CameraRoleControlIndex(const std::optional<XBotGo::CameraRole> &role)
+int CameraRoleControlIndex(const std::optional<xbotgo::CameraRole> &role)
 {
 	if (!role) {
 		return -1;
 	}
 
 	switch (*role) {
-	case XBotGo::CameraRole::Center:
+	case xbotgo::CameraRole::Center:
 		return 0;
-	case XBotGo::CameraRole::Left:
+	case xbotgo::CameraRole::Left:
 		return 1;
-	case XBotGo::CameraRole::Right:
+	case xbotgo::CameraRole::Right:
 		return 2;
 	}
 	return -1;
@@ -200,43 +200,44 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	setWindowTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Control"));
 	resize(500, 300);
 
-	cameraRoleControl = new XBotGo::ComboBoxControl(this);
+	OBSBasic *main = OBSBasic::Get();
+	cameraRoleControl = new xbotgo::ComboBoxControl(this);
 	cameraRoleControl->setTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CameraRole"));
-	for (const XBotGo::CameraRole role :
-	     {XBotGo::CameraRole::Center, XBotGo::CameraRole::Left, XBotGo::CameraRole::Right}) {
-		cameraRoleControl->addItem(QString::fromLatin1(XBotGo::CameraRoleSceneName(role)),
+	for (const xbotgo::CameraRole role :
+	     {xbotgo::CameraRole::Center, xbotgo::CameraRole::Left, xbotgo::CameraRole::Right}) {
+		cameraRoleControl->addItem(QString::fromLatin1(xbotgo::CameraRoleSceneName(role)),
 					   static_cast<int>(role));
 	}
-	OBSBasic *main = OBSBasic::Get();
 	cameraRoleControl->setCurrentIndex(
-		CameraRoleControlIndex(main ? XBotGo::GetSourceCameraRole(*main, source) : std::nullopt));
-	connect(cameraRoleControl, &XBotGo::ComboBoxControl::currentIndexChanged, this, [this](int index) {
+	CameraRoleControlIndex(main ? xbotgo::GetSourceCameraRole(*main, source) : std::nullopt));
+	connect(cameraRoleControl, &xbotgo::ComboBoxControl::currentIndexChanged, this, [this](int index) {
 		if (index < 0) {
 			return;
 		}
 
 		OBSBasic *main = OBSBasic::Get();
 		const int previousIndex = CameraRoleControlIndex(
-			main ? XBotGo::GetSourceCameraRole(*main, source) : std::nullopt);
-		const auto role = static_cast<XBotGo::CameraRole>(cameraRoleControl->currentData().toInt());
-		if (!main || !XBotGo::AssignSourceToCameraRoleScene(*main, source, role)) {
+			main ? xbotgo::GetSourceCameraRole(*main, source) : std::nullopt);
+		const auto role = static_cast<xbotgo::CameraRole>(cameraRoleControl->currentData().toInt());
+		if (!main || !xbotgo::AssignSourceToCameraRoleScene(*main, source, role)) {
 			const QSignalBlocker blocker(cameraRoleControl);
 			cameraRoleControl->setCurrentIndex(previousIndex);
 		}
 	});
+
 
 	modeSelector = new QComboBox(this);
 	parametersAutoZoom = new QCheckBox(this);
 	parametersAutoZoom->setEnabled(false);
 	parametersAutoTracking = new QCheckBox(this);
 	parametersAutoTracking->setEnabled(false);
-	parametersAngleRange = new XBotGo::SliderControl(this);
+	parametersAngleRange = new xbotgo::SliderControl(this);
 	parametersAngleRange->setTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ParameterAngleRange"));
 	parametersAngleRange->setRange(60, 150);
 	parametersAngleRange->setSingleStep(1);
 	parametersAngleRange->setValueFormatter([](int value) { return QStringLiteral("%1°").arg(value); });
 	parametersAngleRange->setEnabled(false);
-	manualZoomSlider = new XBotGo::SliderControl(this);
+	manualZoomSlider = new xbotgo::SliderControl(this);
 	manualZoomSlider->setTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ManualZoom"));
 	manualZoomSlider->setRange(10, 30);
 	manualZoomSlider->setSingleStep(1);
@@ -290,20 +291,20 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	leftLayout->addLayout(grid);
 	connect(parametersAutoZoom, &QCheckBox::toggled, this, &OBSBasicFalconMControl::ApplyAutoZoom);
 	connect(parametersAutoTracking, &QCheckBox::toggled, this, &OBSBasicFalconMControl::ApplyAutoTracking);
-	connect(parametersAngleRange, &XBotGo::SliderControl::sliderReleased, this,
+	connect(parametersAngleRange, &xbotgo::SliderControl::sliderReleased, this,
 		&OBSBasicFalconMControl::ApplyAngleRange);
 	connect(modeSelector, qOverload<int>(&QComboBox::currentIndexChanged), this,
 		&OBSBasicFalconMControl::SelectMode);
 	connect(buzzerLongButton, &QPushButton::clicked, this,
 		[this] { SendBuzzerMode(xbotgo::BuzzerMode::Beep3000Ms); });
 	connect(hallCalibrationStart, &QPushButton::clicked, this, &OBSBasicFalconMControl::StartHallCalibration);
-	connect(manualZoomSlider, &XBotGo::SliderControl::valueChanged, this,
+	connect(manualZoomSlider, &xbotgo::SliderControl::valueChanged, this,
 		&OBSBasicFalconMControl::ManualZoomValueChanged);
-	connect(manualZoomSlider, &XBotGo::SliderControl::sliderPressed, this, [this] {
+	connect(manualZoomSlider, &xbotgo::SliderControl::sliderPressed, this, [this] {
 		manualZoomDragging = true;
 		manualZoomCommandValue = manualZoomSlider->value();
 	});
-	connect(manualZoomSlider, &XBotGo::SliderControl::sliderReleased, this, [this] {
+	connect(manualZoomSlider, &xbotgo::SliderControl::sliderReleased, this, [this] {
 		manualZoomDragging = false;
 		manualZoomQueryDebounce->stop();
 		QueryCurrentZoom();
@@ -324,7 +325,7 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	hallCalibrationTimeout->setSingleShot(true);
 	hallCalibrationTimeout->setInterval(5000);
 	connect(hallCalibrationTimeout, &QTimer::timeout, this, [this] {
-		const bool connected = XBotGo::IsFalconMSourceConnected(source);
+		const bool connected = xbotgo::IsFalconMSourceConnected(source);
 		const bool calibrating = currentHallCalibrationStatus ==
 			static_cast<int>(xbotgo::falconm_hall_calibration_status::calibrating);
 		hallCalibrationStart->setEnabled(connected && !calibrating);
@@ -345,7 +346,7 @@ OBSBasicFalconMControl::~OBSBasicFalconMControl()
 
 void OBSBasicFalconMControl::Send(int direction, int operation)
 {
-	if (!XBotGo::IsFalconMSourceConnected(source)) {
+	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
 
@@ -359,7 +360,7 @@ void OBSBasicFalconMControl::Send(int direction, int operation)
 
 void OBSBasicFalconMControl::SendBuzzerMode(xbotgo::BuzzerMode mode)
 {
-	if (!XBotGo::IsFalconMSourceConnected(source)) {
+	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
 
@@ -372,7 +373,7 @@ void OBSBasicFalconMControl::SendBuzzerMode(xbotgo::BuzzerMode mode)
 
 void OBSBasicFalconMControl::QueryHallCalibration()
 {
-	if (!XBotGo::IsFalconMSourceConnected(source)) {
+	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		hallCalibrationStart->setEnabled(false);
 		return;
 	}
@@ -402,7 +403,7 @@ void OBSBasicFalconMControl::QueryHallCalibration()
 
 void OBSBasicFalconMControl::StartHallCalibration()
 {
-	if (!XBotGo::IsFalconMSourceConnected(source)) {
+	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
 
@@ -430,7 +431,7 @@ void OBSBasicFalconMControl::StartHallCalibration()
 
 void OBSBasicFalconMControl::UpdateHallCalibration()
 {
-	if (!XBotGo::IsFalconMSourceConnected(source)) {
+	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
 
@@ -465,7 +466,7 @@ void OBSBasicFalconMControl::UpdateHallCalibration()
 
 void OBSBasicFalconMControl::QueryCurrentZoom()
 {
-	if (!XBotGo::IsFalconMSourceConnected(source)) {
+	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		manualZoomSlider->setEnabled(false);
 		return;
 	}
@@ -494,7 +495,7 @@ void OBSBasicFalconMControl::QueryCurrentZoom()
 
 void OBSBasicFalconMControl::UpdateCurrentZoom()
 {
-	if (!XBotGo::IsFalconMSourceConnected(source)) {
+	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
 
@@ -554,7 +555,7 @@ bool OBSBasicFalconMControl::DisableAutoZoomForManualControl()
 
 void OBSBasicFalconMControl::ManualZoomValueChanged(int value)
 {
-	if (!XBotGo::IsFalconMSourceConnected(source) || !hasCurrentManualZoom || !hasConfirmedCaptureParameters ||
+	if (!xbotgo::IsFalconMSourceConnected(source) || !hasCurrentManualZoom || !hasConfirmedCaptureParameters ||
 	    value < 10 || value > 30 || value == manualZoomCommandValue) {
 		return;
 	}
@@ -594,14 +595,14 @@ void OBSBasicFalconMControl::ManualZoomValueChanged(int value)
 
 void OBSBasicFalconMControl::UpdateManualZoomEnabled()
 {
-	const bool connected = XBotGo::IsFalconMSourceConnected(source);
+	const bool connected = xbotgo::IsFalconMSourceConnected(source);
 	manualZoomSlider->setEnabled(connected && hasCurrentManualZoom && hasConfirmedCaptureParameters &&
 				     !parametersAutoZoom->isChecked());
 }
 
 void OBSBasicFalconMControl::QueryModes()
 {
-	if (!XBotGo::IsFalconMSourceConnected(source)) {
+	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		modeSelector->setEnabled(false);
 		return;
 	}
@@ -629,7 +630,7 @@ void OBSBasicFalconMControl::QueryModes()
 
 void OBSBasicFalconMControl::QueryCaptureParameters()
 {
-	if (!XBotGo::IsFalconMSourceConnected(source)) {
+	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		parametersAutoZoom->setEnabled(false);
 		parametersAutoTracking->setEnabled(false);
 		parametersAngleRange->setEnabled(false);
@@ -659,7 +660,7 @@ void OBSBasicFalconMControl::QueryCaptureParameters()
 
 void OBSBasicFalconMControl::ApplyAutoZoom(bool checked)
 {
-	if (!XBotGo::IsFalconMSourceConnected(source) || !hasConfirmedCaptureParameters ||
+	if (!xbotgo::IsFalconMSourceConnected(source) || !hasConfirmedCaptureParameters ||
 	    checked == confirmedAutoZoom) {
 		return;
 	}
@@ -682,7 +683,7 @@ void OBSBasicFalconMControl::ApplyAutoZoom(bool checked)
 
 void OBSBasicFalconMControl::ApplyAutoTracking(bool checked)
 {
-	if (!XBotGo::IsFalconMSourceConnected(source) || !hasConfirmedCaptureParameters ||
+	if (!xbotgo::IsFalconMSourceConnected(source) || !hasConfirmedCaptureParameters ||
 	    checked == confirmedAutoTracking) {
 		return;
 	}
@@ -704,7 +705,7 @@ void OBSBasicFalconMControl::ApplyAutoTracking(bool checked)
 
 void OBSBasicFalconMControl::ApplyAngleRange()
 {
-	if (!XBotGo::IsFalconMSourceConnected(source) || !hasConfirmedCaptureParameters ||
+	if (!xbotgo::IsFalconMSourceConnected(source) || !hasConfirmedCaptureParameters ||
 	    parametersAngleRange->value() == confirmedAngleRange) {
 		return;
 	}
@@ -726,7 +727,7 @@ void OBSBasicFalconMControl::ApplyAngleRange()
 
 void OBSBasicFalconMControl::UpdateCaptureParameters()
 {
-	if (!XBotGo::IsFalconMSourceConnected(source)) {
+	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
 	calldata_t cd;
@@ -804,7 +805,7 @@ void OBSBasicFalconMControl::UpdateModes()
 void OBSBasicFalconMControl::SelectMode(int index)
 {
 	if (index < 0 || waitingForModes || waitingForModeResult ||
-	    !XBotGo::IsFalconMSourceConnected(source)) {
+	    !xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
 	const int mode = modeSelector->itemData(index).toInt();
@@ -866,7 +867,7 @@ void OBSBasicFalconMControl::RestoreConfirmedMode()
 	modeTimeout->stop();
 	const QSignalBlocker blocker(modeSelector);
 	modeSelector->setCurrentIndex(modeSelector->findData(confirmedMode));
-	modeSelector->setEnabled(XBotGo::IsFalconMSourceConnected(source) && modeSelector->count() > 0);
+	modeSelector->setEnabled(xbotgo::IsFalconMSourceConnected(source) && modeSelector->count() > 0);
 }
 
 void OBSBasicFalconMControl::Refresh()
@@ -874,7 +875,7 @@ void OBSBasicFalconMControl::Refresh()
 	if (!source) {
 		return;
 	}
-	const bool connected = XBotGo::IsFalconMSourceConnected(source);
+	const bool connected = xbotgo::IsFalconMSourceConnected(source);
 	for (QPushButton *button : directionButtons) {
 		button->setEnabled(connected);
 	}

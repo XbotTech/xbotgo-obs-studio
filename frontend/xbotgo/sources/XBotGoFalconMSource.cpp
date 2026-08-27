@@ -4,7 +4,7 @@
 
 #include <cstring>
 
-namespace XBotGo {
+namespace xbotgo {
 namespace {
 
 constexpr char FalconMSourceId[] = "xbotogo_falconm";
@@ -66,4 +66,4 @@ void DisconnectMotorAngleReport(obs_source_t *source, signal_callback_t callback
 	}
 }
 
-} // namespace XBotGo
+} // namespace xbotgo

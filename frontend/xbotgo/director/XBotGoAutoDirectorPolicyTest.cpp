@@ -7,12 +7,12 @@ using namespace std::chrono_literals;
 
 int main()
 {
-	using XBotGo::CameraRole;
-	using XBotGo::AutoDirectorPolicy::CameraRoleForHorizontalAngle;
-	using XBotGo::AutoDirectorPolicy::CanStartProgramSwitch;
-	using XBotGo::AutoDirectorPolicy::IsSwitchCoolingDown;
-	using XBotGo::AutoDirectorPolicy::ProgramSwitchPath;
-	using XBotGo::AutoDirectorPolicy::ProgramSwitchPathForMode;
+	using xbotgo::CameraRole;
+	using xbotgo::AutoDirectorPolicy::CameraRoleForHorizontalAngle;
+	using xbotgo::AutoDirectorPolicy::CanStartProgramSwitch;
+	using xbotgo::AutoDirectorPolicy::IsSwitchCoolingDown;
+	using xbotgo::AutoDirectorPolicy::ProgramSwitchPath;
+	using xbotgo::AutoDirectorPolicy::ProgramSwitchPathForMode;
 
 	assert(CameraRoleForHorizontalAngle(-30.01) == CameraRole::Left);
 	assert(CameraRoleForHorizontalAngle(-30.0) == CameraRole::Center);

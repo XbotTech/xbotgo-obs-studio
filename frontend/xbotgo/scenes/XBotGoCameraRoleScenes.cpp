@@ -7,7 +7,7 @@
 #include <cstring>
 #include <vector>
 
-namespace XBotGo {
+namespace xbotgo {
 namespace {
 
 struct CameraRoleSceneConfig {
@@ -335,4 +335,4 @@ bool AssignSourceToCameraRoleScene(OBSBasic &main, obs_source_t *source, CameraR
 	return true;
 }
 
-} // namespace XBotGo
+} // namespace xbotgo

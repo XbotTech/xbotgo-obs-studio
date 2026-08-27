@@ -1122,12 +1122,12 @@ static bool falconm_search_device(obs_properties_t *, obs_property_t *, void *da
 		return false;
 	}
 
-	XBotGo::DeviceSearchDialog dialog(QApplication::activeWindow(), XBotGo::DeviceSearchDialog::Mode::Select);
+	xbotgo::DeviceSearchDialog dialog(QApplication::activeWindow(), xbotgo::DeviceSearchDialog::Mode::Select);
 	if (dialog.exec() != QDialog::Accepted) {
 		return false;
 	}
 
-	const std::optional<XBotGo::Device> device = dialog.selectedDevice();
+	const std::optional<xbotgo::Device> device = dialog.selectedDevice();
 	if (!device) {
 		return false;
 	}

@@ -257,7 +257,7 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 
 	ui->setupUi(this);
 	ui->previewDisabledWidget->setVisible(false);
-	xbotgoLiveStreamProvider = std::make_unique<XBotGo::HttpLiveStreamProvider>();
+	xbotgoLiveStreamProvider = std::make_unique<xbotgo::HttpLiveStreamProvider>();
 
 	/* Set up streaming connections */
 	connect(
@@ -1410,7 +1410,7 @@ void OBSBasic::OnFirstLoad()
 {
 	OnEvent(OBS_FRONTEND_EVENT_FINISHED_LOADING);
 
-	xbotgoAutoDirector = std::make_unique<XBotGo::AutoDirector>(*this);
+	xbotgoAutoDirector = std::make_unique<xbotgo::AutoDirector>(*this);
 	xbotgoAutoDirector->start();
 
 #ifdef WHATSNEW_ENABLED

@@ -10,7 +10,7 @@
 
 class OBSBasic;
 
-namespace XBotGo {
+namespace xbotgo {
 
 enum class CameraRole;
 
@@ -54,4 +54,4 @@ private:
 
 };
 
-} // namespace XBotGo
+} // namespace xbotgo
