@@ -73,6 +73,7 @@ enum class ItemPasteType { Invalid, Reference, Duplicate, Both };
 } // namespace OBS
 
 namespace XBotGo {
+class AutoDirector;
 struct LiveStreamConfig;
 class LiveStreamProvider;
 } // namespace XBotGo
@@ -1354,6 +1355,7 @@ private slots:
 	 */
 private:
 	OBSService service;
+	std::unique_ptr<XBotGo::AutoDirector> xbotgoAutoDirector;
 	std::unique_ptr<XBotGo::LiveStreamProvider> xbotgoLiveStreamProvider;
 	QString xbotgoPullUrl;
 

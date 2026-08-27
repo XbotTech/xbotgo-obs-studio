@@ -1,4 +1,5 @@
 #include "falconm-stream.hpp"
+#include "falconm-angle-state.hpp"
 #include "falconm-log.hpp"
 #include "falconm-time.hpp"
 #include "protocol/falcon-events.hpp"
@@ -263,6 +264,10 @@ public:
 	void setDecodedFrameCallback(decoded_callback cb) override { decoded_cb_ = std::move(cb); }
 	void setAudioCallback(audio_callback cb) override { audio_cb_ = std::move(cb); }
 	void setSignalingCallback(signaling_callback cb) override { signaling_cb_ = std::move(cb); }
+	void setMotorAngleReportCallback(motor_angle_report_callback cb) override
+	{
+		angle_state_.setReportCallback(std::move(cb));
+	}
 	void setSupportedModesCallback(supported_modes_callback cb) override
 	{
 		std::lock_guard<std::mutex> lock(supported_modes_mutex_);
@@ -280,16 +285,16 @@ public:
 		m.payload = const_cast<uint8_t *>(payload.data());
 		m.payloadlen = (uint32_t)payload.size();
 		const std::string payload_hex = payload_to_hex(payload.data(), payload.size());
-		FALCONM_LOG_INFO(
-			"FalconM: this=%p uniqueID=%d sendPeerMessage device='%s' topic='%s' payloadlen=%u payload=%s",
-			(void *)this, instance_id_, device_id_.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
+		// FALCONM_LOG_INFO(
+		// 	"FalconM: this=%p uniqueID=%d sendPeerMessage device='%s' topic='%s' payloadlen=%u payload=%s",
+		// 	(void *)this, instance_id_, device_id_.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
 		return session->sendPeerMessage(device_id_, m) == 0;
 	}
 	falconm_device_state state() const override
 	{
 		falconm_device_state result;
 		std::scoped_lock lock(supported_modes_mutex_, capture_mode_mutex_, capture_parameters_mutex_,
-				      angle_mutex_, hall_calibration_mutex_, current_zoom_mutex_);
+				      hall_calibration_mutex_, current_zoom_mutex_);
 		result.supported_modes = supported_modes_;
 		result.supported_modes_sequence = supported_modes_sequence_;
 		result.capture_mode_result = capture_mode_result_;
@@ -297,7 +302,7 @@ public:
 		result.capture_parameters_sequence = capture_parameters_sequence_;
 		result.default_capture_parameters = default_capture_parameters_;
 		result.default_capture_parameters_sequence = default_capture_parameters_sequence_;
-		result.motor_angle = angle_;
+		result.motor_angle = angle_state_.snapshot();
 		result.hall_calibration_status = hall_calibration_status_;
 		result.hall_calibration_sequence = hall_calibration_sequence_;
 		result.current_zoom = current_zoom_;
@@ -747,20 +752,18 @@ private:
 			default_capture_parameters_ = parameters->parameters();
 			++default_capture_parameters_sequence_;
 		} else if (const auto *angle = dynamic_cast<const MotorAngleEvent *>(&event)) {
-			std::lock_guard<std::mutex> lock(angle_mutex_);
-			angle_ = angle->angle();
+			angle_state_.updateQuery(angle->angle());
 		} else if (const auto *report = dynamic_cast<const MotorAngleReportEvent *>(&event)) {
-			std::lock_guard<std::mutex> lock(angle_mutex_);
-			angle_ = report->angle();
+			angle_state_.updateReport(report->angle());
 		}
 	}
 	void onPeerMessage(rtcsdk::BLNSPClient &client, const rtcsdk::MQTTMessage &m) override
 	{
 		const auto *payload = static_cast<const uint8_t *>(m.payload);
 		const std::string payload_hex = payload_to_hex(payload, m.payloadlen);
-		FALCONM_LOG_INFO(
-			"FalconM: this=%p uniqueID=%d onPeerMessage client='%s' topic='%s' payloadlen=%u payload=%s",
-			(void *)this, instance_id_, client.name.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
+		// FALCONM_LOG_INFO(
+		// 	"FalconM: this=%p uniqueID=%d onPeerMessage client='%s' topic='%s' payloadlen=%u payload=%s",
+		// 	(void *)this, instance_id_, client.name.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
 		if (!m.payload && m.payloadlen != 0) {
 			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d invalid signaling payload from '%s'", (void *)this,
 			     instance_id_, client.name.c_str());
@@ -783,9 +786,9 @@ private:
 	}
 	void onNewSrtStream(const MediaStreamInfo &stream) override
 	{
-		FALCONM_LOG_INFO(
-			"FalconM: this=%p uniqueID=%d [socket_source] new srt stream ssrc=%u type=%d format=%d",
-			(void *)this, instance_id_, stream.ssrc, stream.mediaType, stream.mediaFormat);
+		// FALCONM_LOG_INFO(
+		// 	"FalconM: this=%p uniqueID=%d [socket_source] new srt stream ssrc=%u type=%d format=%d",
+		// 	(void *)this, instance_id_, stream.ssrc, stream.mediaType, stream.mediaFormat);
 		/* Wires up the SDK-internal decode pipeline (VideoDecoderIos/AudioDecoderIos);
 		 * no surface/renderer is created on mac, only on Android. */
 		auto session = sessionSnapshot();
@@ -860,8 +863,7 @@ private:
 	std::atomic<bool> disconnecting_{false};
 	std::atomic<int64_t> fpsStartTimeMs_{0};
 	std::atomic<uint64_t> fpsVideoFrameCount_{0};
-	mutable std::mutex angle_mutex_;
-	falconm_motor_angle angle_;
+	FalconMAngleState angle_state_;
 	mutable std::mutex hall_calibration_mutex_;
 	falconm_hall_calibration_status hall_calibration_status_ = falconm_hall_calibration_status::uncalibrated;
 	uint64_t hall_calibration_sequence_ = 0;

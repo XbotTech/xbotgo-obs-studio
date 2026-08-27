@@ -1,6 +1,6 @@
 #pragma once
 
-#include <obs.h>
+#include <obs.hpp>
 
 #include <optional>
 
@@ -15,6 +15,9 @@ enum class CameraRole {
 };
 
 const char *CameraRoleSceneName(CameraRole role);
+
+// Returns an existing role scene and never creates one. Must be called on the Qt UI thread.
+OBSSource GetCameraRoleScene(OBSBasic &main, CameraRole role);
 
 // Must be called on the Qt UI thread. source is borrowed and remains owned by OBS.
 std::optional<CameraRole> GetSourceCameraRole(OBSBasic &main, obs_source_t *source);

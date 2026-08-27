@@ -1,4 +1,5 @@
 #include "falconm-protocol.hpp"
+#include "falconm-angle-state.hpp"
 #include "falconm-time.hpp"
 #include "protocol/falcon-events.hpp"
 
@@ -114,6 +115,34 @@ static void test_dfa_parses_limits_and_rejects_short_payloads()
 	MotorAngleEvent bxa_event;
 	assert(!bxa_event.parse(short_payload, 9));
 	assert(!bxa_event.parse(nullptr, 0));
+}
+
+static void test_motor_angle_state_only_notifies_for_reports()
+{
+	FalconMAngleState state;
+	int report_count = 0;
+	falconm_motor_angle reported_angle;
+	state.setReportCallback([&](const falconm_motor_angle &angle) {
+		++report_count;
+		reported_angle = angle;
+	});
+
+	falconm_motor_angle queried;
+	queried.horizontal = -3000;
+	state.updateQuery(queried);
+	assert(report_count == 0);
+	assert(state.snapshot().horizontal == -3000);
+
+	falconm_motor_angle report;
+	report.result = 7;
+	report.horizontal = 3001;
+	report.vertical = -500;
+	state.updateReport(report);
+	assert(report_count == 1);
+	assert(reported_angle.result == 7);
+	assert(reported_angle.horizontal == 3001);
+	assert(reported_angle.vertical == -500);
+	assert(state.snapshot().horizontal == 3001);
 }
 
 static void test_basketball_mode_filter()
@@ -357,6 +386,7 @@ int main()
 	test_dca_parses_current_zoom();
 	test_bxa_parses_signed_motor_angles();
 	test_dfa_parses_limits_and_rejects_short_payloads();
+	test_motor_angle_state_only_notifies_for_reports();
 	test_basketball_mode_filter();
 	test_request_encoding();
 	test_atr_encodes_clock_fields_and_timezone_id();

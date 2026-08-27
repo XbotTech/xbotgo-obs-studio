@@ -64,6 +64,7 @@ public:
 	using audio_callback = std::function<void(const obs_source_audio &)>;
 	using signaling_callback = std::function<void(const std::string &, const std::vector<uint8_t> &)>;
 	using supported_modes_callback = std::function<void(const falconm_supported_modes &)>;
+	using motor_angle_report_callback = std::function<void(const falconm_motor_angle &)>;
 
 	virtual ~FalconMStream() = default;
 	/* Encoder options are retained until the peer connects, then passed to startStreaming. */
@@ -82,6 +83,7 @@ public:
 	virtual void setAudioCallback(audio_callback callback) = 0;
 	virtual void setSignalingCallback(signaling_callback callback) = 0;
 	virtual void setSupportedModesCallback(supported_modes_callback callback) = 0;
+	virtual void setMotorAngleReportCallback(motor_angle_report_callback callback) = 0;
 	virtual bool send(const FalconRequest &request) = 0;
 	virtual falconm_device_state state() const = 0;
 };

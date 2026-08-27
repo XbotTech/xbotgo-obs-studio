@@ -260,6 +260,12 @@ const char *CameraRoleSceneName(CameraRole role)
 	return config ? config->sceneName : "";
 }
 
+OBSSource GetCameraRoleScene(OBSBasic &main, CameraRole role)
+{
+	const CameraRoleSceneConfig *config = FindCameraRoleSceneConfig(role);
+	return config ? FindCameraRoleScene(main, *config) : OBSSource{};
+}
+
 std::optional<CameraRole> GetSourceCameraRole(OBSBasic &main, obs_source_t *source)
 {
 	if (!source) {

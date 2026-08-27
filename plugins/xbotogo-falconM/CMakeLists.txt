@@ -11,6 +11,7 @@ add_library(xbotogo-falconM MODULE
   xbotogo-falconM.cpp
   falconm-source.cpp
   falconm-stream.cpp
+  falconm-angle-state.hpp
   falconm-time.cpp
   falconm-log.hpp
   falconm.hpp
