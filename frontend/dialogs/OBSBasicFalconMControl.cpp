@@ -48,140 +48,140 @@ int CameraRoleControlIndex(const std::optional<xbotgo::CameraRole> &role)
 QString ModeLabel(uint16_t mode, bool beta)
 {
 	QString label;
-	switch (mode) {
-	case 1:
+	switch (static_cast<xbotgo::ModeType>(mode)) {
+	case xbotgo::ModeType::Soccer5v5Over14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.1");
 		break;
-	case 2:
+	case xbotgo::ModeType::Soccer5v5Under14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.2");
 		break;
-	case 3:
+	case xbotgo::ModeType::Soccer7v7Over14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.3");
 		break;
-	case 4:
+	case xbotgo::ModeType::Soccer7v7Under14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.4");
 		break;
-	case 5:
+	case xbotgo::ModeType::BasketballWholeOver14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.5");
 		break;
-	case 6:
+	case xbotgo::ModeType::BasketballWholeUnder14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.6");
 		break;
-	case 7:
+	case xbotgo::ModeType::BasketballHalfOver14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.7");
 		break;
-	case 8:
+	case xbotgo::ModeType::BasketballHalfUnder14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.8");
 		break;
-	case 11:
+	case xbotgo::ModeType::Soccer11v11Over14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.11");
 		break;
-	case 12:
+	case xbotgo::ModeType::Soccer11v11Under14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.12");
 		break;
-	case 13:
+	case xbotgo::ModeType::RugbyWholeOver14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.13");
 		break;
-	case 14:
+	case xbotgo::ModeType::RugbyWholeUnder14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.14");
 		break;
-	case 15:
+	case xbotgo::ModeType::LacrosseWholeOver14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.15");
 		break;
-	case 16:
+	case xbotgo::ModeType::LacrosseWholeUnder14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.16");
 		break;
-	case 17:
+	case xbotgo::ModeType::IceHockeyWholeOver14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.17");
 		break;
-	case 18:
+	case xbotgo::ModeType::IceHockeyWholeUnder14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.18");
 		break;
-	case 19:
+	case xbotgo::ModeType::WheelchairSoccer:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.19");
 		break;
-	case 20:
+	case xbotgo::ModeType::FollowMe:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.20");
 		break;
-	case 23:
+	case xbotgo::ModeType::TennisDouble:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.23");
 		break;
-	case 24:
+	case xbotgo::ModeType::TennisSingle:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.24");
 		break;
-	case 25:
+	case xbotgo::ModeType::HandballWholeOver14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.25");
 		break;
-	case 26:
+	case xbotgo::ModeType::HandballWholeUnder14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.26");
 		break;
-	case 27:
+	case xbotgo::ModeType::HandballHalfOver14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.27");
 		break;
-	case 28:
+	case xbotgo::ModeType::HandballHalfUnder14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.28");
 		break;
-	case 29:
+	case xbotgo::ModeType::BroomballWholeOver14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.29");
 		break;
-	case 30:
+	case xbotgo::ModeType::BroomballWholeUnder14:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.30");
 		break;
-	case 31:
+	case xbotgo::ModeType::PickleballDouble:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.31");
 		break;
-	case 32:
+	case xbotgo::ModeType::PickleballSingle:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.32");
 		break;
-	case 33:
+	case xbotgo::ModeType::BadmintonDouble:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.33");
 		break;
-	case 34:
+	case xbotgo::ModeType::BadmintonSingle:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.34");
 		break;
-	case 36:
+	case xbotgo::ModeType::BasketballWholeOver14High:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.36");
 		break;
-	case 37:
+	case xbotgo::ModeType::BasketballWholeUnder14High:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.37");
 		break;
-	case 38:
+	case xbotgo::ModeType::BasketballHalfOver14High:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.38");
 		break;
-	case 39:
+	case xbotgo::ModeType::BasketballHalfUnder14High:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.39");
 		break;
-	case 40:
+	case xbotgo::ModeType::Volleyball:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.40");
 		break;
-	case 41:
+	case xbotgo::ModeType::KeyPlayerHalf:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.41");
 		break;
-	case 42:
+	case xbotgo::ModeType::KeyPlayerFull:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.42");
 		break;
-	case 43:
+	case xbotgo::ModeType::KeyPlayerHalfHigh:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.43");
 		break;
-	case 44:
+	case xbotgo::ModeType::KeyPlayerFullHigh:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.44");
 		break;
-	case 45:
+	case xbotgo::ModeType::AmericanFootballCloseHigh:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.45");
 		break;
-	case 46:
+	case xbotgo::ModeType::AmericanFootballMediumHigh:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.46");
 		break;
-	case 47:
+	case xbotgo::ModeType::AmericanFootballFarHigh:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.47");
 		break;
-	case 48:
+	case xbotgo::ModeType::RugbyHigh:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.48");
 		break;
-	case 49:
+	case xbotgo::ModeType::FlagFootballHigh:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.49");
 		break;
-	case 50:
+	case xbotgo::ModeType::Baseball:
 		label = QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Mode.50");
 		break;
 	default:
@@ -788,7 +788,8 @@ void OBSBasicFalconMControl::UpdateModes()
 		long long mode = 0;
 		bool beta = false;
 		if (calldata_get_int(&item, "mode", &mode) &&
-		    xbotgo::falconm_is_basketball_mode(static_cast<uint16_t>(mode))) {
+		    xbotgo::falconm_is_basketball_mode(
+			    static_cast<xbotgo::ModeType>(static_cast<uint16_t>(mode)))) {
 			calldata_get_bool(&item, "beta", &beta);
 			modeSelector->addItem(ModeLabel(static_cast<uint16_t>(mode), beta), mode);
 		}

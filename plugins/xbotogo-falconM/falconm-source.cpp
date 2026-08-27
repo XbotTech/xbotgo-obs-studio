@@ -794,7 +794,9 @@ static void falconm_set_capture_mode(void *data, calldata_t *cd)
 		calldata_set_bool(cd, "success", false);
 		return;
 	}
-	calldata_set_bool(cd, "success", d->stream->send(SetCaptureModeRequest{static_cast<uint16_t>(mode)}));
+	calldata_set_bool(
+		cd, "success",
+		d->stream->send(SetCaptureModeRequest{static_cast<ModeType>(static_cast<uint16_t>(mode))}));
 }
 
 static void falconm_get_capture_mode_result(void *data, calldata_t *cd)
