@@ -193,13 +193,9 @@ QString ModeLabel(uint16_t mode, bool beta)
 } // namespace
 
 OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *parent)
-	: QDialog(parent),
+	: QWidget(parent),
 	  source(obs_source_get_ref(source_))
 {
-	setAttribute(Qt::WA_DeleteOnClose);
-	setWindowTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Control"));
-	resize(500, 300);
-
 	OBSBasic *main = OBSBasic::Get();
 	cameraRoleControl = new xbotgo::ComboBoxControl(this);
 	cameraRoleControl->setTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.CameraRole"));
@@ -877,6 +873,9 @@ void OBSBasicFalconMControl::Refresh()
 		return;
 	}
 	const bool connected = xbotgo::IsFalconMSourceConnected(source);
+	if (connected != sourceWasConnected) {
+		emit connectionStateChanged(connected);
+	}
 	for (QPushButton *button : directionButtons) {
 		button->setEnabled(connected);
 	}

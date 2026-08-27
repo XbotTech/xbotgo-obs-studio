@@ -1,26 +1,35 @@
 #pragma once
 
 #include <QDialog>
-#include <obs.h>
 #include <QHash>
-#include <QPointer>
+#include <obs.hpp>
+
 #include <vector>
 
-class QTableWidget;
-class OBSBasicFalconMControl;
+class QLabel;
+class QVBoxLayout;
+class FalconMDeviceCard;
 
 class OBSBasicFalconMDevices : public QDialog {
 	Q_OBJECT
 
-	QTableWidget *devices = nullptr;
-	std::vector<obs_source_t *> sources;
-	QHash<obs_source_t *, QPointer<OBSBasicFalconMControl>> controls;
+	QVBoxLayout *cardsLayout = nullptr;
+	QLabel *empty = nullptr;
+	QHash<obs_source_t *, FalconMDeviceCard *> cards;
+	std::vector<OBSSignal> sourceSignals;
 
 public:
 	explicit OBSBasicFalconMDevices(QWidget *parent = nullptr);
 	~OBSBasicFalconMDevices() override;
 
 private:
-	void ReloadDevices();
-	void OpenControl(int row, int column);
+	static bool EnumSource(void *data, obs_source_t *source);
+	static void SourceCreated(void *data, calldata_t *calldata);
+	static void SourceRemoved(void *data, calldata_t *calldata);
+	static void SourceRenamed(void *data, calldata_t *calldata);
+
+	void AddSource(OBSSource source);
+	void RemoveSource(OBSSource source);
+	void RenameSource(OBSSource source, const QString &name);
+	void UpdateEmptyState();
 };

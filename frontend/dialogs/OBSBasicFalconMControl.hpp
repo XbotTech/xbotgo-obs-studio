@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include <QWidget>
 #include <obs.h>
 
 #include <cstdint>
@@ -15,13 +15,13 @@ class QTimer;
 namespace xbotgo {
 class ComboBoxControl;
 class SliderControl;
-}
+} // namespace xbotgo
 
 namespace xbotgo {
 enum class BuzzerMode : uint8_t;
 }
 
-class OBSBasicFalconMControl : public QDialog {
+class OBSBasicFalconMControl : public QWidget {
 	Q_OBJECT
 	obs_source_t *source = nullptr;
 	xbotgo::ComboBoxControl *cameraRoleControl = nullptr;
@@ -62,6 +62,9 @@ class OBSBasicFalconMControl : public QDialog {
 public:
 	explicit OBSBasicFalconMControl(obs_source_t *source, QWidget *parent = nullptr);
 	~OBSBasicFalconMControl() override;
+
+signals:
+	void connectionStateChanged(bool connected);
 
 private:
 	void Send(int direction, int operation);

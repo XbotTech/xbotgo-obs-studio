@@ -48,3 +48,14 @@ target_sources(
     dialogs/OBSWhatsNew.cpp
     dialogs/OBSWhatsNew.hpp
 )
+
+if(ENABLE_UNIT_TESTS)
+  add_executable(
+    xbotgo-falconm-control-test
+    dialogs/OBSBasicFalconMControlTest.cpp
+  )
+  target_include_directories(xbotgo-falconm-control-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/dialogs")
+  target_link_libraries(xbotgo-falconm-control-test PRIVATE OBS::libobs Qt6::Widgets)
+  add_test(NAME xbotgo-falconm-control-test COMMAND xbotgo-falconm-control-test)
+  set_target_properties_obs(xbotgo-falconm-control-test PROPERTIES FOLDER tests)
+endif()

@@ -683,11 +683,13 @@ void OBSBasic::on_idianPlayground_triggered()
 
 void OBSBasic::on_actionXBotGoDeviceManagement_triggered()
 {
-	auto *dialog = new OBSBasicFalconMDevices(this);
-	dialog->setAttribute(Qt::WA_DeleteOnClose);
-	dialog->show();
-	dialog->raise();
-	dialog->activateWindow();
+	if (!falconMDevices) {
+		falconMDevices = new OBSBasicFalconMDevices(this);
+		falconMDevices->setAttribute(Qt::WA_DeleteOnClose);
+	}
+	falconMDevices->show();
+	falconMDevices->raise();
+	falconMDevices->activateWindow();
 }
 
 void OBSBasic::on_actionXBotGoStartStreaming_triggered()

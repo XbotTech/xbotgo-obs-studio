@@ -9,131 +9,175 @@
 #include <qt-wrappers.hpp>
 #include <xbotgo/sources/XBotGoFalconMSource.hpp>
 
-#include <QHeaderView>
-#include <QPushButton>
-#include <QTableWidget>
+#include <QFrame>
+#include <QHBoxLayout>
+#include <QLabel>
+#include <QScrollArea>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <cstring>
 
 namespace {
 constexpr const char *FalconMSourceId = "xbotogo_falconm";
-}
+} // namespace
+
+class FalconMDeviceCard : public QFrame {
+	obs_source_t *source = nullptr;
+	QLabel *connectionIndicator = nullptr;
+	QLabel *title = nullptr;
+	QToolButton *toggle = nullptr;
+	OBSBasicFalconMControl *control = nullptr;
+
+public:
+	explicit FalconMDeviceCard(obs_source_t *source_, QWidget *parent = nullptr)
+		: QFrame(parent),
+		  source(obs_source_get_ref(source_))
+	{
+		setFrameShape(QFrame::StyledPanel);
+		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+
+		connectionIndicator = new QLabel(this);
+		connectionIndicator->setFixedSize(10, 10);
+		title = new QLabel(QT_UTF8(obs_source_get_name(source)), this);
+		title->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+		toggle = new QToolButton(this);
+		toggle->setAutoRaise(true);
+		toggle->setCheckable(true);
+		toggle->setChecked(true);
+		toggle->setArrowType(Qt::DownArrow);
+
+		auto *header = new QHBoxLayout;
+		header->addWidget(connectionIndicator);
+		header->addWidget(title, 1);
+		header->addWidget(toggle);
+
+		control = new OBSBasicFalconMControl(source, this);
+		auto *layout = new QVBoxLayout(this);
+		layout->addLayout(header);
+		layout->addWidget(control);
+
+		connect(toggle, &QToolButton::toggled, this, [this](bool expanded) {
+			control->setVisible(expanded);
+			toggle->setArrowType(expanded ? Qt::DownArrow : Qt::RightArrow);
+		});
+		connect(control, &OBSBasicFalconMControl::connectionStateChanged, this,
+			[this](bool connected) { SetConnected(connected); });
+		SetConnected(xbotgo::IsFalconMSourceConnected(source));
+	}
+
+	~FalconMDeviceCard() override
+	{
+		if (source) {
+			obs_source_release(source);
+		}
+	}
+
+	void SetSourceName(const QString &name) { title->setText(name); }
+
+private:
+	void SetConnected(bool connected)
+	{
+		connectionIndicator->setStyleSheet(
+			QStringLiteral("background-color: %1; border-radius: 5px;")
+				.arg(connected ? QStringLiteral("#34c759") : QStringLiteral("#777777")));
+	}
+};
 
 OBSBasicFalconMDevices::OBSBasicFalconMDevices(QWidget *parent) : QDialog(parent)
 {
 	setWindowTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement"));
 	setModal(false);
-	resize(680, 320);
+	resize(760, 720);
 
-	devices = new QTableWidget(this);
-	devices->setColumnCount(4);
-	devices->setHorizontalHeaderLabels({QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Source"),
-					    QTStr("Basic.MainMenu.XBotGo.DeviceManagement.DeviceId"),
-					    QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Status"),
-					    QTStr("Basic.MainMenu.XBotGo.DeviceManagement.ConnectionStatus")});
-	devices->setEditTriggers(QAbstractItemView::NoEditTriggers);
-	devices->setSelectionBehavior(QAbstractItemView::SelectRows);
-	devices->setSelectionMode(QAbstractItemView::SingleSelection);
-	devices->setSortingEnabled(true);
-	devices->horizontalHeader()->setStretchLastSection(false);
-	devices->horizontalHeader()->setSectionResizeMode(0, QHeaderView::Stretch);
-	devices->horizontalHeader()->setSectionResizeMode(1, QHeaderView::Stretch);
-	devices->horizontalHeader()->setSectionResizeMode(2, QHeaderView::ResizeToContents);
-	devices->horizontalHeader()->setSectionResizeMode(3, QHeaderView::ResizeToContents);
-	devices->verticalHeader()->setVisible(false);
+	auto *contents = new QWidget(this);
+	cardsLayout = new QVBoxLayout(contents);
+	cardsLayout->setAlignment(Qt::AlignTop);
+	empty = new QLabel(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Empty"), contents);
+	empty->setAlignment(Qt::AlignCenter);
+	cardsLayout->addWidget(empty);
 
-	auto *refresh = new QPushButton(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Refresh"), this);
-	connect(refresh, &QPushButton::clicked, this, &OBSBasicFalconMDevices::ReloadDevices);
-	connect(devices, &QTableWidget::cellDoubleClicked, this, &OBSBasicFalconMDevices::OpenControl);
+	auto *scrollArea = new QScrollArea(this);
+	scrollArea->setWidgetResizable(true);
+	scrollArea->setFrameShape(QFrame::NoFrame);
+	scrollArea->setWidget(contents);
 
 	auto *layout = new QVBoxLayout(this);
-	layout->addWidget(devices);
-	layout->addWidget(refresh, 0, Qt::AlignRight);
+	layout->addWidget(scrollArea);
 
-	ReloadDevices();
+	signal_handler_t *handler = obs_get_signal_handler();
+	sourceSignals.emplace_back(handler, "source_create", SourceCreated, this);
+	sourceSignals.emplace_back(handler, "source_remove", SourceRemoved, this);
+	sourceSignals.emplace_back(handler, "source_rename", SourceRenamed, this);
+	obs_enum_sources(EnumSource, this);
+	UpdateEmptyState();
 }
 
-OBSBasicFalconMDevices::~OBSBasicFalconMDevices()
+OBSBasicFalconMDevices::~OBSBasicFalconMDevices() = default;
+
+bool OBSBasicFalconMDevices::EnumSource(void *data, obs_source_t *source)
 {
-	for (auto *source : sources) {
-		obs_source_release(source);
-	}
+	static_cast<OBSBasicFalconMDevices *>(data)->AddSource(OBSSource(source));
+	return true;
 }
 
-void OBSBasicFalconMDevices::ReloadDevices()
+void OBSBasicFalconMDevices::SourceCreated(void *data, calldata_t *calldata)
 {
-	for (auto *source : sources) {
-		obs_source_release(source);
-	}
-	sources.clear();
-	devices->setSortingEnabled(false);
-	devices->setRowCount(0);
-
-	obs_enum_sources(
-		[](void *data, obs_source_t *source) {
-			auto *table = static_cast<QTableWidget *>(data);
-			const char *id = obs_source_get_id(source);
-			if (!id || strcmp(id, FalconMSourceId) != 0) {
-				return true;
-			}
-
-			OBSDataAutoRelease settings = obs_source_get_settings(source);
-			const char *deviceId = settings ? obs_data_get_string(settings, "device_id") : "";
-			const int row = table->rowCount();
-			auto *source_ref = obs_source_get_ref(source);
-			auto *dialog = static_cast<OBSBasicFalconMDevices *>(table->parentWidget());
-			const size_t sourceIndex = dialog->sources.size();
-			dialog->sources.push_back(source_ref);
-			table->insertRow(row);
-			auto *sourceItem = new QTableWidgetItem(QT_UTF8(obs_source_get_name(source)));
-			sourceItem->setData(Qt::UserRole, static_cast<qulonglong>(sourceIndex));
-			table->setItem(row, 0, sourceItem);
-			table->setItem(row, 1, new QTableWidgetItem(QT_UTF8(deviceId)));
-			table->setItem(row, 2,
-				       new QTableWidgetItem(
-					       QTStr(obs_source_active(source)
-							     ? "Basic.MainMenu.XBotGo.DeviceManagement.Active"
-							     : "Basic.MainMenu.XBotGo.DeviceManagement.Inactive")));
-			table->setItem(
-				row, 3,
-				new QTableWidgetItem(QTStr(xbotgo::IsFalconMSourceConnected(source)
-							   ? "Basic.MainMenu.XBotGo.DeviceManagement.Connected"
-							   : "Basic.MainMenu.XBotGo.DeviceManagement.Disconnected")));
-			return true;
-		},
-		devices);
-
-	if (devices->rowCount() == 0) {
-		devices->setRowCount(1);
-		devices->setItem(0, 0, new QTableWidgetItem(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Empty")));
-		devices->setSpan(0, 0, 1, devices->columnCount());
-		devices->item(0, 0)->setTextAlignment(Qt::AlignCenter);
-	}
-
-	devices->setSortingEnabled(true);
+	auto *dialog = static_cast<OBSBasicFalconMDevices *>(data);
+	OBSSource source(static_cast<obs_source_t *>(calldata_ptr(calldata, "source")));
+	QMetaObject::invokeMethod(dialog, [dialog, source] { dialog->AddSource(source); });
 }
 
-void OBSBasicFalconMDevices::OpenControl(int row, int)
+void OBSBasicFalconMDevices::SourceRemoved(void *data, calldata_t *calldata)
 {
-	auto *sourceItem = row >= 0 ? devices->item(row, 0) : nullptr;
-	if (!sourceItem) {
+	auto *dialog = static_cast<OBSBasicFalconMDevices *>(data);
+	OBSSource source(static_cast<obs_source_t *>(calldata_ptr(calldata, "source")));
+	QMetaObject::invokeMethod(dialog, [dialog, source] { dialog->RemoveSource(source); });
+}
+
+void OBSBasicFalconMDevices::SourceRenamed(void *data, calldata_t *calldata)
+{
+	auto *dialog = static_cast<OBSBasicFalconMDevices *>(data);
+	OBSSource source(static_cast<obs_source_t *>(calldata_ptr(calldata, "source")));
+	const QString name = QT_UTF8(calldata_string(calldata, "new_name"));
+	QMetaObject::invokeMethod(dialog, [dialog, source, name] { dialog->RenameSource(source, name); });
+}
+
+void OBSBasicFalconMDevices::AddSource(OBSSource source)
+{
+	obs_source_t *rawSource = source;
+	if (!rawSource || obs_source_removed(rawSource)) {
+		return;
+	}
+	const char *id = obs_source_get_id(rawSource);
+	if (!id || strcmp(id, FalconMSourceId) != 0 || cards.contains(rawSource)) {
 		return;
 	}
 
-	bool validIndex = false;
-	const qulonglong sourceIndex = sourceItem->data(Qt::UserRole).toULongLong(&validIndex);
-	if (!validIndex || sourceIndex >= sources.size()) {
-		return;
+	auto *card = new FalconMDeviceCard(rawSource, this);
+	cards.insert(rawSource, card);
+	cardsLayout->addWidget(card);
+	UpdateEmptyState();
+}
+
+void OBSBasicFalconMDevices::RemoveSource(OBSSource source)
+{
+	obs_source_t *rawSource = source;
+	if (auto *card = cards.take(rawSource)) {
+		cardsLayout->removeWidget(card);
+		delete card;
+		UpdateEmptyState();
 	}
-	auto *source = sources[static_cast<size_t>(sourceIndex)];
-	if (controls.value(source)) {
-		controls.value(source)->raise();
-		controls.value(source)->activateWindow();
-		return;
+}
+
+void OBSBasicFalconMDevices::RenameSource(OBSSource source, const QString &name)
+{
+	if (auto *card = cards.value(source)) {
+		card->SetSourceName(name);
 	}
-	auto *control = new OBSBasicFalconMControl(source, this);
-	controls.insert(source, control);
-	connect(control, &QObject::destroyed, this, [this, source] { controls.remove(source); });
-	control->show();
+}
+
+void OBSBasicFalconMDevices::UpdateEmptyState()
+{
+	empty->setVisible(cards.isEmpty());
 }
