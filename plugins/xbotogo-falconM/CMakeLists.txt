@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.28...3.30)
 
+option(SESSION_CREATE_ONCE "Create one FalconM SDK session per Source lifetime" OFF)
+
 set(FALCONM_SDK_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/vendor/media-sdk/arm64")
 file(GLOB_RECURSE FALCONM_SDK_HEADERS CONFIGURE_DEPENDS
   "${FALCONM_SDK_ROOT}/include/*.h"
@@ -32,6 +34,10 @@ target_include_directories(xbotogo-falconM SYSTEM PRIVATE "${FALCONM_SDK_ROOT}/i
 target_link_libraries(xbotogo-falconM PRIVATE "${FALCONM_SDK_LIBRARY}")
 set_property(TARGET xbotogo-falconM PROPERTY BUILD_RPATH "@loader_path/../Frameworks")
 target_link_options(xbotogo-falconM PRIVATE "LINKER:-rpath,@loader_path/../Frameworks")
+
+if(SESSION_CREATE_ONCE)
+  target_compile_definitions(xbotogo-falconM PRIVATE SESSION_CREATE_ONCE)
+endif()
 
 add_custom_command(
   TARGET xbotogo-falconM

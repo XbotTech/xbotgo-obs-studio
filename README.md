@@ -109,6 +109,7 @@ cmake --build build_macos_xcode --config Debug --target obs-studio --parallel 8
 ```
 
 构建过程中，`plugins/xbotogo-falconM/CMakeLists.txt` 会把 `libmedia_sdk.1.0.0.dylib` 复制到插件旁的 `Frameworks` 目录，并设置运行时搜索路径。
+FalconM 默认在每次 `connect()` 时创建并启动一个新 Media SDK Session，在 `disconnect()` 时停止并销毁。若需要保留旧的“每个 Source 生命周期只创建一次 Session”行为，可在配置时传入 `-DSESSION_CREATE_ONCE=ON`。
 
 ## 使用流程
 
