@@ -10,7 +10,7 @@
 class QObject;
 class QTimer;
 
-namespace XBotGo {
+namespace xbotgo {
 
 using LiveStreamConfigCallback = std::function<void(std::optional<LiveStreamConfig> config, const QString &error)>;
 
@@ -42,4 +42,4 @@ private:
 	bool heartbeatInFlight = false;
 };
 
-} // namespace XBotGo
+} // namespace xbotgo

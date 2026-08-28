@@ -46,6 +46,7 @@
 #endif
 #include <widgets/AudioMixer.hpp>
 #include <widgets/OBSProjector.hpp>
+#include <xbotgo/director/XBotGoAutoDirector.hpp>
 #include <xbotgo/services/XBotGoLiveStreamProvider.hpp>
 
 #include <OBSStudioAPI.hpp>
@@ -256,7 +257,7 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 
 	ui->setupUi(this);
 	ui->previewDisabledWidget->setVisible(false);
-	xbotgoLiveStreamProvider = std::make_unique<XBotGo::HttpLiveStreamProvider>();
+	xbotgoLiveStreamProvider = std::make_unique<xbotgo::HttpLiveStreamProvider>();
 
 	/* Set up streaming connections */
 	connect(
@@ -1409,6 +1410,9 @@ void OBSBasic::OnFirstLoad()
 {
 	OnEvent(OBS_FRONTEND_EVENT_FINISHED_LOADING);
 
+	xbotgoAutoDirector = std::make_unique<xbotgo::AutoDirector>(*this);
+	xbotgoAutoDirector->start();
+
 #ifdef WHATSNEW_ENABLED
 	/* Attempt to load init screen if available */
 	if (cef) {
@@ -1433,6 +1437,11 @@ OBSBasic::~OBSBasic() {}
 
 void OBSBasic::applicationShutdown() noexcept
 {
+	if (xbotgoAutoDirector) {
+		xbotgoAutoDirector->stop();
+		xbotgoAutoDirector.reset();
+	}
+
 	/* clear out UI event queue */
 	QApplication::sendPostedEvents(nullptr);
 #ifndef __APPLE__

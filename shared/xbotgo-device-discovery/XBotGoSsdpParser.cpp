@@ -5,7 +5,7 @@
 #include <QRegularExpression>
 #include <QStringList>
 
-namespace XBotGo {
+namespace xbotgo {
 
 std::optional<Device> parseSsdpDevice(const QByteArray &payload, const QHostAddress &senderAddress)
 {
@@ -97,4 +97,4 @@ std::optional<Device> parseSsdpDevice(const QByteArray &payload, const QHostAddr
 	return device;
 }
 
-} // namespace XBotGo
+} // namespace xbotgo

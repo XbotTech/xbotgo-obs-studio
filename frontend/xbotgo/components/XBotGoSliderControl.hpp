@@ -7,7 +7,7 @@
 class AbsoluteSlider;
 class QLabel;
 
-namespace XBotGo {
+namespace xbotgo {
 
 class SliderControl final : public QWidget {
 	Q_OBJECT
@@ -43,4 +43,4 @@ private:
 	ValueFormatter valueFormatter;
 };
 
-} // namespace XBotGo
+} // namespace xbotgo

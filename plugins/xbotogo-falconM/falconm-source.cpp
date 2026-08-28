@@ -23,6 +23,7 @@ namespace xbotgo {
 static constexpr uint16_t DEFAULT_MQTT_PORT = 1883;
 static constexpr char STREAMING_RESOLUTION_SETTING[] = "streaming_resolution";
 static constexpr char FALCONM_SOURCE_ID[] = "xbotogo_falconm";
+static constexpr char MOTOR_ANGLE_REPORT_SIGNAL[] = "motor_angle_report";
 
 struct scene_fit_context {
 	obs_source_t *source;
@@ -477,11 +478,25 @@ static void *falconm_create(obs_data_t *s, obs_source_t *source)
 	d->device_id = obs_data_get_string(s, "device_id");
 	d->broker_port = get_broker_port(s);
 	d->streaming_resolution = get_streaming_resolution(s);
-	d->stream->setDecodedFrameCallback([d](const obs_source_frame &f) {
-		output_video(d, f);
-	});
-	d->stream->setAudioCallback([d](const obs_source_audio &f) {
-		output_audio(d, f);
+	signal_handler_t *signalHandler = obs_source_get_signal_handler(source);
+	if (!signalHandler ||
+	    !signal_handler_add(signalHandler, "void motor_angle_report(ptr source, float horizontal)")) {
+		blog(LOG_WARNING, "FalconM: failed to register motor angle report signal");
+	}
+	d->stream->setDecodedFrameCallback([d](const obs_source_frame &f) { output_video(d, f); });
+	d->stream->setAudioCallback([d](const obs_source_audio &f) { output_audio(d, f); });
+	d->stream->setMotorAngleReportCallback([d](const falconm_motor_angle &angle) {
+		signal_handler_t *handler = obs_source_get_signal_handler(d->source);
+		if (!handler) {
+			return;
+		}
+
+		calldata_t params;
+		calldata_init(&params);
+		calldata_set_ptr(&params, "source", d->source);
+		calldata_set_float(&params, "horizontal", angle.horizontal / 100.0);
+		signal_handler_signal(handler, MOTOR_ANGLE_REPORT_SIGNAL, &params);
+		calldata_free(&params);
 	});
 	d->control_thread = std::thread(falconm_control_worker, d);
 	falconm_request_reconnect(d);
@@ -512,6 +527,7 @@ static void falconm_destroy(void *p)
 	d->stream->setDecodedFrameCallback({});
 	d->stream->setAudioCallback({});
 	d->stream->setSignalingCallback({});
+	d->stream->setMotorAngleReportCallback({});
 	delete d;
 }
 static void falconm_update(void *p, obs_data_t *s)
@@ -778,7 +794,9 @@ static void falconm_set_capture_mode(void *data, calldata_t *cd)
 		calldata_set_bool(cd, "success", false);
 		return;
 	}
-	calldata_set_bool(cd, "success", d->stream->send(SetCaptureModeRequest{static_cast<uint16_t>(mode)}));
+	calldata_set_bool(
+		cd, "success",
+		d->stream->send(SetCaptureModeRequest{static_cast<ModeType>(static_cast<uint16_t>(mode))}));
 }
 
 static void falconm_get_capture_mode_result(void *data, calldata_t *cd)
@@ -1106,12 +1124,12 @@ static bool falconm_search_device(obs_properties_t *, obs_property_t *, void *da
 		return false;
 	}
 
-	XBotGo::DeviceSearchDialog dialog(QApplication::activeWindow(), XBotGo::DeviceSearchDialog::Mode::Select);
+	xbotgo::DeviceSearchDialog dialog(QApplication::activeWindow(), xbotgo::DeviceSearchDialog::Mode::Select);
 	if (dialog.exec() != QDialog::Accepted) {
 		return false;
 	}
 
-	const std::optional<XBotGo::Device> device = dialog.selectedDevice();
+	const std::optional<xbotgo::Device> device = dialog.selectedDevice();
 	if (!device) {
 		return false;
 	}

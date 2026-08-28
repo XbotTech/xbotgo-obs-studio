@@ -19,15 +19,16 @@ private:
 
 class SetCaptureModeRequest final : public FalconRequest {
 public:
-	explicit SetCaptureModeRequest(uint16_t mode) : mode_(mode) {}
+	explicit SetCaptureModeRequest(ModeType mode) : mode_(mode) {}
 	std::string_view topic() const override { return "AVR"; }
 	std::vector<uint8_t> encodePayload() const override
 	{
-		return {static_cast<uint8_t>(mode_ >> 8), static_cast<uint8_t>(mode_)};
+		const uint16_t mode = static_cast<uint16_t>(mode_);
+		return {static_cast<uint8_t>(mode >> 8), static_cast<uint8_t>(mode)};
 	}
 
 private:
-	uint16_t mode_;
+	ModeType mode_;
 };
 
 class QueryCaptureParametersRequest final : public FalconRequest {

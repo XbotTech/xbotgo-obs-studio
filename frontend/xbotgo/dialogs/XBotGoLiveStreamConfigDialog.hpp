@@ -6,7 +6,7 @@
 
 class QLineEdit;
 
-namespace XBotGo {
+namespace xbotgo {
 
 class LiveStreamConfigDialog final : public QDialog {
 	Q_OBJECT
@@ -28,4 +28,4 @@ private:
 	QString taskId;
 };
 
-} // namespace XBotGo
+} // namespace xbotgo

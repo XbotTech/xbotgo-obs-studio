@@ -10,7 +10,7 @@
 
 #include "moc_XBotGoSliderControl.cpp"
 
-namespace XBotGo {
+namespace xbotgo {
 
 SliderControl::SliderControl(QWidget *parent) : QWidget(parent)
 {
@@ -146,4 +146,4 @@ void SliderControl::updateValueLabels()
 	maximumLabel->setText(formatValue(slider->maximum()));
 }
 
-} // namespace XBotGo
+} // namespace xbotgo

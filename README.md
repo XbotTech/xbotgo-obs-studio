@@ -108,6 +108,8 @@ cmake --build build_macos_xcode --config Debug --target xbotogo-falconM --parall
 cmake --build build_macos_xcode --config Debug --target obs-studio --parallel 8
 ```
 
+需要生成可安装的 arm64 DMG 时，请参考 [macOS 打包与发布说明](docs/macos-packaging.md)。文档分别记录了内部测试包、Developer ID 正式签名包、Apple 公证和产物验证流程。
+
 构建过程中，`plugins/xbotogo-falconM/CMakeLists.txt` 会把 `libmedia_sdk.1.0.0.dylib` 复制到插件旁的 `Frameworks` 目录，并设置运行时搜索路径。
 FalconM 默认在每次 `connect()` 时创建并启动一个新 Media SDK Session，在 `disconnect()` 时停止并销毁。若需要保留旧的“每个 Source 生命周期只创建一次 Session”行为，可在配置时传入 `-DSESSION_CREATE_ONCE=ON`。
 
@@ -131,6 +133,17 @@ FalconM 场景项在添加或加载时会自动等比适配基础画布并居中
 布局状态并移动到目标角色场景，同时从其他场景中移除。角色下拉框的空白项不会改变 Source 所在场景。
 角色切换不会改变 OBS 当前场景；控制窗口根据设备连接状态工作，因此 Source 位于非当前场景时仍可查询
 和控制设备。设备管理列表分别显示 Source 的场景激活状态和 FalconM 设备连接状态。
+
+### 自动导播
+
+应用完成加载后会自动启动自动导播，并持续读取唯一主机位 FalconM Source 上报的水平云台角度。角度低于
+`-30°` 时切换到左机位，高于 `+30°` 时切换到右机位，`-30°` 至 `+30°`（包含边界）切换到
+主机位。切换沿用 OBS 当前配置的转场；成功发起一次 Program 切换后进入 3 秒冷却，冷却期间忽略新的
+角度上报。目标已经是当前 Program 时不会重复切换，也不会刷新冷却时间。
+
+自动导播要求主机位唯一。存在多个主机位，或目标角色场景不存在、没有配置 FalconM Source 时，会保持
+当前 Program；配置恢复后，下一次有效角度上报会自动恢复导播。本版本不提供开关、阈值、冷却时间或
+零点偏移设置，设备上报的 `0°` 直接作为球场中线。
 
 设备 SSDP 响应必须包含以下字段，且 `X-Device-IP` 必须与数据包来源 IPv4 地址一致：
 

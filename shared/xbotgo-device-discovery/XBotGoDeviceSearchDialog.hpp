@@ -16,7 +16,7 @@ class QShowEvent;
 class QStandardItemModel;
 class QTableView;
 
-namespace XBotGo {
+namespace xbotgo {
 
 class DeviceSearchDialog : public QDialog {
 	Q_OBJECT
@@ -60,4 +60,4 @@ private:
 	QList<QNetworkInterface> multicastInterfaces;
 };
 
-} // namespace XBotGo
+} // namespace xbotgo

@@ -1,6 +1,6 @@
 #pragma once
 
-#include <QDialog>
+#include <QWidget>
 #include <obs.h>
 
 #include <cstdint>
@@ -10,54 +10,32 @@ class QComboBox;
 class QCheckBox;
 class QLabel;
 class QPushButton;
-class QString;
 class QTimer;
 
-namespace XBotGo {
+namespace xbotgo {
 class ComboBoxControl;
 class SliderControl;
-}
+} // namespace xbotgo
 
 namespace xbotgo {
 enum class BuzzerMode : uint8_t;
 }
 
-class OBSBasicFalconMControl : public QDialog {
+class OBSBasicFalconMControl : public QWidget {
 	Q_OBJECT
 	obs_source_t *source = nullptr;
-	XBotGo::ComboBoxControl *cameraRoleControl = nullptr;
-	QLabel *connection = nullptr;
+	xbotgo::ComboBoxControl *cameraRoleControl = nullptr;
 	QLabel *angles = nullptr;
 	std::vector<QPushButton *> directionButtons;
 	QPushButton *buzzerLongButton = nullptr;
-	QLabel *buzzerStatus = nullptr;
-	QLabel *hallCalibrationStatus = nullptr;
-	QPushButton *hallCalibrationRefresh = nullptr;
 	QPushButton *hallCalibrationStart = nullptr;
-	QLabel *modeStatus = nullptr;
 	QComboBox *modeSelector = nullptr;
-	QPushButton *modeRefresh = nullptr;
-	QPushButton *parametersRefresh = nullptr;
-	QLabel *parametersStatus = nullptr;
-	QLabel *parametersMode = nullptr;
-	QLabel *parametersResolution = nullptr;
-	QLabel *parametersResolutionId = nullptr;
-	QLabel *parametersWatermark = nullptr;
-	QLabel *parametersMute = nullptr;
 	QCheckBox *parametersAutoZoom = nullptr;
 	QCheckBox *parametersAutoTracking = nullptr;
-	XBotGo::SliderControl *parametersAngleRange = nullptr;
-	QLabel *parametersAccelSpeed = nullptr;
-	QLabel *parametersCountdown = nullptr;
-	QLabel *parametersFlicker = nullptr;
-	QLabel *parametersSupportedResolutions = nullptr;
-	XBotGo::SliderControl *manualZoomSlider = nullptr;
-	QLabel *manualZoomStatus = nullptr;
-	QTimer *poller = nullptr;
+	xbotgo::SliderControl *parametersAngleRange = nullptr;
+	xbotgo::SliderControl *manualZoomSlider = nullptr;
 	QTimer *modeTimeout = nullptr;
-	QTimer *parametersTimeout = nullptr;
 	QTimer *hallCalibrationTimeout = nullptr;
-	QTimer *manualZoomTimeout = nullptr;
 	QTimer *manualZoomQueryDebounce = nullptr;
 	uint64_t modeQuerySequence = 0;
 	uint64_t modeResultSequence = 0;
@@ -69,7 +47,6 @@ class OBSBasicFalconMControl : public QDialog {
 	uint64_t manualZoomQuerySequence = 0;
 	uint64_t displayedManualZoomSequence = 0;
 	int currentHallCalibrationStatus = -1;
-	int currentManualZoom = 10;
 	int manualZoomCommandValue = 10;
 	int confirmedMode = -1;
 	int confirmedAngleRange = 0;
@@ -85,6 +62,9 @@ class OBSBasicFalconMControl : public QDialog {
 public:
 	explicit OBSBasicFalconMControl(obs_source_t *source, QWidget *parent = nullptr);
 	~OBSBasicFalconMControl() override;
+
+signals:
+	void connectionStateChanged(bool connected);
 
 private:
 	void Send(int direction, int operation);
@@ -106,6 +86,6 @@ private:
 	void UpdateCaptureParameters();
 	void SelectMode(int index);
 	void HandleModeResult();
-	void RestoreConfirmedMode(const QString &status);
+	void RestoreConfirmedMode();
 	void Refresh();
 };

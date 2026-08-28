@@ -10,7 +10,7 @@
 #include <QUrl>
 #include <QVBoxLayout>
 
-namespace XBotGo {
+namespace xbotgo {
 
 static bool isValidRtmpUrl(const QString &value)
 {
@@ -76,4 +76,4 @@ void LiveStreamConfigDialog::accept()
 	QDialog::accept();
 }
 
-} // namespace XBotGo
+} // namespace xbotgo

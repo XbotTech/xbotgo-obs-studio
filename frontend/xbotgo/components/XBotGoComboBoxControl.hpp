@@ -8,7 +8,7 @@ class QComboBox;
 class QLabel;
 class QString;
 
-namespace XBotGo {
+namespace xbotgo {
 
 class ComboBoxControl final : public QWidget {
 	Q_OBJECT
@@ -32,4 +32,4 @@ private:
 	QComboBox *comboBox = nullptr;
 };
 
-} // namespace XBotGo
+} // namespace xbotgo

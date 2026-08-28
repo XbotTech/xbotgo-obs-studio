@@ -6,7 +6,7 @@
 
 #include "moc_XBotGoSliderControlDemoDialog.cpp"
 
-namespace XBotGo {
+namespace xbotgo {
 
 SliderControlDemoDialog::SliderControlDemoDialog(QWidget *parent) : QDialog(parent)
 {
@@ -36,4 +36,4 @@ SliderControlDemoDialog::SliderControlDemoDialog(QWidget *parent) : QDialog(pare
 	resize(520, sizeHint().height());
 }
 
-} // namespace XBotGo
+} // namespace xbotgo
