@@ -761,9 +761,9 @@ private:
 	{
 		const auto *payload = static_cast<const uint8_t *>(m.payload);
 		const std::string payload_hex = payload_to_hex(payload, m.payloadlen);
-		// FALCONM_LOG_INFO(
-		// 	"FalconM: this=%p uniqueID=%d onPeerMessage client='%s' topic='%s' payloadlen=%u payload=%s",
-		// 	(void *)this, instance_id_, client.name.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
+		 FALCONM_LOG_INFO(
+		 	"FalconM: this=%p uniqueID=%d onPeerMessage client='%s' topic='%s' payloadlen=%u payload=%s",
+		 	(void *)this, instance_id_, client.name.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
 		if (!m.payload && m.payloadlen != 0) {
 			blog(LOG_ERROR, "FalconM: this=%p uniqueID=%d invalid signaling payload from '%s'", (void *)this,
 			     instance_id_, client.name.c_str());
@@ -786,9 +786,9 @@ private:
 	}
 	void onNewSrtStream(const MediaStreamInfo &stream) override
 	{
-		// FALCONM_LOG_INFO(
-		// 	"FalconM: this=%p uniqueID=%d [socket_source] new srt stream ssrc=%u type=%d format=%d",
-		// 	(void *)this, instance_id_, stream.ssrc, stream.mediaType, stream.mediaFormat);
+		 FALCONM_LOG_INFO(
+		 	"FalconM: this=%p uniqueID=%d [socket_source] new srt stream ssrc=%u type=%d format=%d",
+		 	(void *)this, instance_id_, stream.ssrc, stream.mediaType, stream.mediaFormat);
 		/* Wires up the SDK-internal decode pipeline (VideoDecoderIos/AudioDecoderIos);
 		 * no surface/renderer is created on mac, only on Android. */
 		auto session = sessionSnapshot();
