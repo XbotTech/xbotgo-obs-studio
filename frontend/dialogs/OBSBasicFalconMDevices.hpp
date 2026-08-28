@@ -11,6 +11,10 @@ class QLabel;
 class QVBoxLayout;
 class FalconMDeviceCard;
 
+namespace xbotgo {
+class AutoDirector;
+}
+
 class OBSBasicFalconMDevices : public QWidget {
 	Q_OBJECT
 
@@ -20,7 +24,7 @@ class OBSBasicFalconMDevices : public QWidget {
 	std::vector<OBSSignal> sourceSignals;
 
 public:
-	explicit OBSBasicFalconMDevices(QWidget *parent = nullptr);
+	explicit OBSBasicFalconMDevices(xbotgo::AutoDirector &director, QWidget *parent = nullptr);
 	~OBSBasicFalconMDevices() override;
 
 	static void ConfigureDock(QDockWidget &dock)

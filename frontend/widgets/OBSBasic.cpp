@@ -257,6 +257,8 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 	api = InitializeAPIInterface(this);
 
 	ui->setupUi(this);
+	xbotgoAutoDirector = std::make_unique<xbotgo::AutoDirector>(*this);
+	xbotgoAutoDirector->start();
 	ui->previewDisabledWidget->setVisible(false);
 	xbotgoLiveStreamProvider = std::make_unique<xbotgo::HttpLiveStreamProvider>();
 
@@ -382,7 +384,7 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 	falconMDevicesDock->setObjectName(QStringLiteral("xbotgoDeviceManagementDock"));
 	falconMDevicesDock->setWindowTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement"));
 	OBSBasicFalconMDevices::ConfigureDock(*falconMDevicesDock);
-	falconMDevices = new OBSBasicFalconMDevices(falconMDevicesDock);
+	falconMDevices = new OBSBasicFalconMDevices(*xbotgoAutoDirector, falconMDevicesDock);
 	falconMDevicesDock->setWidget(falconMDevices);
 	addDockWidget(Qt::RightDockWidgetArea, falconMDevicesDock);
 
@@ -1421,9 +1423,6 @@ void OBSBasic::OBSInit()
 void OBSBasic::OnFirstLoad()
 {
 	OnEvent(OBS_FRONTEND_EVENT_FINISHED_LOADING);
-
-	xbotgoAutoDirector = std::make_unique<xbotgo::AutoDirector>(*this);
-	xbotgoAutoDirector->start();
 
 #ifdef WHATSNEW_ENABLED
 	/* Attempt to load init screen if available */

@@ -1,4 +1,5 @@
 #include "OBSBasicFalconMDevices.hpp"
+#include "OBSBasicAutoDirectorControl.hpp"
 #include "OBSBasicFalconMControl.hpp"
 
 #include <OBSApp.hpp>
@@ -84,7 +85,7 @@ private:
 	}
 };
 
-OBSBasicFalconMDevices::OBSBasicFalconMDevices(QWidget *parent) : QWidget(parent)
+OBSBasicFalconMDevices::OBSBasicFalconMDevices(xbotgo::AutoDirector &director, QWidget *parent) : QWidget(parent)
 {
 	auto *contents = new QWidget(this);
 	cardsLayout = new QVBoxLayout(contents);
@@ -102,7 +103,11 @@ OBSBasicFalconMDevices::OBSBasicFalconMDevices(QWidget *parent) : QWidget(parent
 
 	auto *layout = new QVBoxLayout(this);
 	layout->setContentsMargins(0, 0, 0, 0);
-	layout->addWidget(scrollArea);
+	layout->addWidget(scrollArea, 1);
+	layout->addWidget(new OBSBasicAutoDirectorControl(
+		director, QTStr("Basic.MainMenu.XBotGo.DeviceManagement.AutoDirector"),
+		QTStr("Basic.MainMenu.XBotGo.DeviceManagement.AutoDirector.SwitchCooldown"),
+		QTStr("Basic.MainMenu.XBotGo.DeviceManagement.AutoDirector.SecondsSuffix"), this));
 
 	signal_handler_t *handler = obs_get_signal_handler();
 	sourceSignals.emplace_back(handler, "source_create", SourceCreated, this);
