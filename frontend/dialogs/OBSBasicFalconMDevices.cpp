@@ -35,7 +35,7 @@ public:
 		  source(obs_source_get_ref(source_))
 	{
 		setFrameShape(QFrame::StyledPanel);
-		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
+		setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Maximum);
 
 		connectionIndicator = new QLabel(this);
 		connectionIndicator->setFixedSize(10, 10);
@@ -84,14 +84,12 @@ private:
 	}
 };
 
-OBSBasicFalconMDevices::OBSBasicFalconMDevices(QWidget *parent) : QDialog(parent)
+OBSBasicFalconMDevices::OBSBasicFalconMDevices(QWidget *parent) : QWidget(parent)
 {
-	setWindowTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement"));
-	setModal(false);
-	resize(760, 720);
-
 	auto *contents = new QWidget(this);
 	cardsLayout = new QVBoxLayout(contents);
+	cardsLayout->setContentsMargins(8, 8, 8, 8);
+	cardsLayout->setSpacing(8);
 	cardsLayout->setAlignment(Qt::AlignTop);
 	empty = new QLabel(QTStr("Basic.MainMenu.XBotGo.DeviceManagement.Empty"), contents);
 	empty->setAlignment(Qt::AlignCenter);
@@ -103,6 +101,7 @@ OBSBasicFalconMDevices::OBSBasicFalconMDevices(QWidget *parent) : QDialog(parent
 	scrollArea->setWidget(contents);
 
 	auto *layout = new QVBoxLayout(this);
+	layout->setContentsMargins(0, 0, 0, 0);
 	layout->addWidget(scrollArea);
 
 	signal_handler_t *handler = obs_get_signal_handler();

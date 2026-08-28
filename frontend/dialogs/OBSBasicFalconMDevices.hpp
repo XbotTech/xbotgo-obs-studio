@@ -1,7 +1,8 @@
 #pragma once
 
-#include <QDialog>
+#include <QDockWidget>
 #include <QHash>
+#include <QWidget>
 #include <obs.hpp>
 
 #include <vector>
@@ -10,7 +11,7 @@ class QLabel;
 class QVBoxLayout;
 class FalconMDeviceCard;
 
-class OBSBasicFalconMDevices : public QDialog {
+class OBSBasicFalconMDevices : public QWidget {
 	Q_OBJECT
 
 	QVBoxLayout *cardsLayout = nullptr;
@@ -21,6 +22,13 @@ class OBSBasicFalconMDevices : public QDialog {
 public:
 	explicit OBSBasicFalconMDevices(QWidget *parent = nullptr);
 	~OBSBasicFalconMDevices() override;
+
+	static void ConfigureDock(QDockWidget &dock)
+	{
+		dock.setAllowedAreas(Qt::RightDockWidgetArea);
+		dock.setFeatures(QDockWidget::DockWidgetClosable);
+		dock.setMinimumWidth(500);
+	}
 
 private:
 	static bool EnumSource(void *data, obs_source_t *source);
