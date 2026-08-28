@@ -13,6 +13,7 @@
 #include <QThread>
 
 #include <cmath>
+#include <stdexcept>
 
 namespace xbotgo {
 namespace {
@@ -242,15 +243,11 @@ void AutoDirector::setCenterConfigurationState(CenterConfigurationState state)
 	centerConfigurationState_ = state;
 }
 
-void AutoDirector::processMotorAngle(
-	obs_source_t *source,
-	double horizontal,
-	std::chrono::steady_clock::time_point reportedAt
-	)
+void AutoDirector::processMotorAngle(obs_source_t *source, double horizontal,
+				     std::chrono::steady_clock::time_point reportedAt)
 {
 	if (QThread::currentThread() != thread()) {
-		blog(LOG_ERROR, "XBotGo auto director rejected motor angle outside the Qt UI thread");
-		return;
+		throw std::logic_error("XBotGo auto director processed motor angle outside the Qt UI thread");
 	}
 
 	// 1. 获取中间机位
