@@ -13,7 +13,7 @@
 #include <utility>
 #include <vector>
 
-namespace XBotGo {
+namespace xbotgo {
 
 namespace {
 
@@ -285,4 +285,4 @@ void HttpLiveStreamProvider::stopLiveTask(QObject *context)
 	thread->start();
 }
 
-} // namespace XBotGo
+} // namespace xbotgo

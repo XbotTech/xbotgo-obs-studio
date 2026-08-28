@@ -1,4 +1,5 @@
 #include "falconm-protocol.hpp"
+#include "falconm-angle-state.hpp"
 #include "falconm-time.hpp"
 #include "protocol/falcon-events.hpp"
 
@@ -116,23 +117,124 @@ static void test_dfa_parses_limits_and_rejects_short_payloads()
 	assert(!bxa_event.parse(nullptr, 0));
 }
 
+static void test_motor_angle_state_only_notifies_for_reports()
+{
+	FalconMAngleState state;
+	int report_count = 0;
+	falconm_motor_angle reported_angle;
+	state.setReportCallback([&](const falconm_motor_angle &angle) {
+		++report_count;
+		reported_angle = angle;
+	});
+
+	falconm_motor_angle queried;
+	queried.horizontal = -3000;
+	state.updateQuery(queried);
+	assert(report_count == 0);
+	assert(state.snapshot().horizontal == -3000);
+
+	falconm_motor_angle report;
+	report.result = 7;
+	report.horizontal = 3001;
+	report.vertical = -500;
+	state.updateReport(report);
+	assert(report_count == 1);
+	assert(reported_angle.result == 7);
+	assert(reported_angle.horizontal == 3001);
+	assert(reported_angle.vertical == -500);
+	assert(state.snapshot().horizontal == 3001);
+}
+
 static void test_basketball_mode_filter()
 {
-	for (const uint16_t mode : {uint16_t(5), uint16_t(6), uint16_t(7), uint16_t(8), uint16_t(36), uint16_t(37),
-				    uint16_t(38), uint16_t(39)}) {
+	for (const ModeType mode : {
+		     ModeType::BasketballWholeOver14,
+		     ModeType::BasketballWholeUnder14,
+		     ModeType::BasketballHalfOver14,
+		     ModeType::BasketballHalfUnder14,
+		     ModeType::BasketballWholeOver14High,
+		     ModeType::BasketballWholeUnder14High,
+		     ModeType::BasketballHalfOver14High,
+		     ModeType::BasketballHalfUnder14High,
+	     }) {
 		assert(falconm_is_basketball_mode(mode));
 	}
-	for (const uint16_t mode : {uint16_t(1), uint16_t(20), uint16_t(41), uint16_t(50), uint16_t(65535)}) {
+	for (const ModeType mode : {
+		     ModeType::Soccer5v5Over14,
+		     ModeType::FollowMe,
+		     ModeType::KeyPlayerHalf,
+		     ModeType::Baseball,
+	     }) {
 		assert(!falconm_is_basketball_mode(mode));
 	}
 }
+
+static constexpr bool init_mode_type_values_are_stable()
+{
+	constexpr std::pair<ModeType, uint16_t> values[] = {
+		     std::pair{ModeType::Team, uint16_t(0)},
+		     std::pair{ModeType::Soccer5v5Over14, uint16_t(1)},
+		     std::pair{ModeType::Soccer5v5Under14, uint16_t(2)},
+		     std::pair{ModeType::Soccer7v7Over14, uint16_t(3)},
+		     std::pair{ModeType::Soccer7v7Under14, uint16_t(4)},
+		     std::pair{ModeType::BasketballWholeOver14, uint16_t(5)},
+		     std::pair{ModeType::BasketballWholeUnder14, uint16_t(6)},
+		     std::pair{ModeType::BasketballHalfOver14, uint16_t(7)},
+		     std::pair{ModeType::BasketballHalfUnder14, uint16_t(8)},
+		     std::pair{ModeType::Soccer11v11Over14, uint16_t(11)},
+		     std::pair{ModeType::Soccer11v11Under14, uint16_t(12)},
+		     std::pair{ModeType::RugbyWholeOver14, uint16_t(13)},
+		     std::pair{ModeType::RugbyWholeUnder14, uint16_t(14)},
+		     std::pair{ModeType::LacrosseWholeOver14, uint16_t(15)},
+		     std::pair{ModeType::LacrosseWholeUnder14, uint16_t(16)},
+		     std::pair{ModeType::IceHockeyWholeOver14, uint16_t(17)},
+		     std::pair{ModeType::IceHockeyWholeUnder14, uint16_t(18)},
+		     std::pair{ModeType::WheelchairSoccer, uint16_t(19)},
+		     std::pair{ModeType::FollowMe, uint16_t(20)},
+		     std::pair{ModeType::TennisDouble, uint16_t(23)},
+		     std::pair{ModeType::TennisSingle, uint16_t(24)},
+		     std::pair{ModeType::HandballWholeOver14, uint16_t(25)},
+		     std::pair{ModeType::HandballWholeUnder14, uint16_t(26)},
+		     std::pair{ModeType::HandballHalfOver14, uint16_t(27)},
+		     std::pair{ModeType::HandballHalfUnder14, uint16_t(28)},
+		     std::pair{ModeType::BroomballWholeOver14, uint16_t(29)},
+		     std::pair{ModeType::BroomballWholeUnder14, uint16_t(30)},
+		     std::pair{ModeType::PickleballDouble, uint16_t(31)},
+		     std::pair{ModeType::PickleballSingle, uint16_t(32)},
+		     std::pair{ModeType::BadmintonDouble, uint16_t(33)},
+		     std::pair{ModeType::BadmintonSingle, uint16_t(34)},
+		     std::pair{ModeType::BasketballWholeOver14High, uint16_t(36)},
+		     std::pair{ModeType::BasketballWholeUnder14High, uint16_t(37)},
+		     std::pair{ModeType::BasketballHalfOver14High, uint16_t(38)},
+		     std::pair{ModeType::BasketballHalfUnder14High, uint16_t(39)},
+		     std::pair{ModeType::Volleyball, uint16_t(40)},
+		     std::pair{ModeType::KeyPlayerHalf, uint16_t(41)},
+		     std::pair{ModeType::KeyPlayerFull, uint16_t(42)},
+		     std::pair{ModeType::KeyPlayerHalfHigh, uint16_t(43)},
+		     std::pair{ModeType::KeyPlayerFullHigh, uint16_t(44)},
+		     std::pair{ModeType::AmericanFootballCloseHigh, uint16_t(45)},
+		     std::pair{ModeType::AmericanFootballMediumHigh, uint16_t(46)},
+		     std::pair{ModeType::AmericanFootballFarHigh, uint16_t(47)},
+		     std::pair{ModeType::RugbyHigh, uint16_t(48)},
+		     std::pair{ModeType::FlagFootballHigh, uint16_t(49)},
+		     std::pair{ModeType::Baseball, uint16_t(50)},
+	};
+	for (const auto [strategy, expected] : values) {
+		if (static_cast<uint16_t>(strategy) != expected) {
+			return false;
+		}
+	}
+	return true;
+}
+
+static_assert(init_mode_type_values_are_stable());
 
 static void test_request_encoding()
 {
 	const auto bpr = QuerySupportedModesRequest{3};
 	assert(bpr.topic() == "BPR" && bpr.encodePayload() == std::vector<uint8_t>({3}));
-	const auto avr = SetCaptureModeRequest{0x1234};
-	assert(avr.topic() == "AVR" && avr.encodePayload() == std::vector<uint8_t>({0x12, 0x34}));
+	const auto avr = SetCaptureModeRequest{ModeType::BasketballWholeOver14High};
+	assert(avr.topic() == "AVR" && avr.encodePayload() == std::vector<uint8_t>({0x00, 0x24}));
 	const auto ayr = SendDirectionRequest{falconm_direction::left, falconm_operation::release};
 	assert(ayr.topic() == "AYR" && ayr.encodePayload() == std::vector<uint8_t>({2, 2}));
 	const auto bxr = QueryMotorAngleRequest{};
@@ -357,6 +459,7 @@ int main()
 	test_dca_parses_current_zoom();
 	test_bxa_parses_signed_motor_angles();
 	test_dfa_parses_limits_and_rejects_short_payloads();
+	test_motor_angle_state_only_notifies_for_reports();
 	test_basketball_mode_filter();
 	test_request_encoding();
 	test_atr_encodes_clock_fields_and_timezone_id();

@@ -2,7 +2,7 @@
 
 #include <QString>
 
-namespace XBotGo {
+namespace xbotgo {
 
 struct LiveStreamConfig {
 	QString pushServer;
@@ -24,4 +24,4 @@ struct LiveStreamConfig {
 	}
 };
 
-} // namespace XBotGo
+} // namespace xbotgo

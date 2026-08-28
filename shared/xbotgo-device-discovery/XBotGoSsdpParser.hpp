@@ -7,8 +7,8 @@
 
 #include <optional>
 
-namespace XBotGo {
+namespace xbotgo {
 
 std::optional<Device> parseSsdpDevice(const QByteArray &payload, const QHostAddress &senderAddress);
 
-} // namespace XBotGo
+} // namespace xbotgo

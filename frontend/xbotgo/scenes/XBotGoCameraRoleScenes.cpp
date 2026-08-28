@@ -7,7 +7,7 @@
 #include <cstring>
 #include <vector>
 
-namespace XBotGo {
+namespace xbotgo {
 namespace {
 
 struct CameraRoleSceneConfig {
@@ -260,6 +260,12 @@ const char *CameraRoleSceneName(CameraRole role)
 	return config ? config->sceneName : "";
 }
 
+OBSSource GetCameraRoleScene(OBSBasic &main, CameraRole role)
+{
+	const CameraRoleSceneConfig *config = FindCameraRoleSceneConfig(role);
+	return config ? FindCameraRoleScene(main, *config) : OBSSource{};
+}
+
 std::optional<CameraRole> GetSourceCameraRole(OBSBasic &main, obs_source_t *source)
 {
 	if (!source) {
@@ -329,4 +335,4 @@ bool AssignSourceToCameraRoleScene(OBSBasic &main, obs_source_t *source, CameraR
 	return true;
 }
 
-} // namespace XBotGo
+} // namespace xbotgo

@@ -2,7 +2,7 @@
 
 #include <QDialog>
 
-namespace XBotGo {
+namespace xbotgo {
 
 class SliderControlDemoDialog final : public QDialog {
 	Q_OBJECT
@@ -11,4 +11,4 @@ public:
 	explicit SliderControlDemoDialog(QWidget *parent = nullptr);
 };
 
-} // namespace XBotGo
+} // namespace xbotgo

@@ -7,7 +7,7 @@
 
 #include "moc_XBotGoComboBoxControl.cpp"
 
-namespace XBotGo {
+namespace xbotgo {
 
 ComboBoxControl::ComboBoxControl(QWidget *parent) : QWidget(parent)
 {
@@ -64,4 +64,4 @@ void ComboBoxControl::setCurrentIndex(int index)
 	comboBox->setCurrentIndex(index);
 }
 
-} // namespace XBotGo
+} // namespace xbotgo

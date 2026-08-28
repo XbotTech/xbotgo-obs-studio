@@ -4,7 +4,7 @@
 
 #include <optional>
 
-namespace XBotGo {
+namespace xbotgo {
 
 struct Device {
 	QString id;
@@ -18,4 +18,4 @@ struct Device {
 	std::optional<bool> timeSynchronized;
 };
 
-} // namespace XBotGo
+} // namespace xbotgo
