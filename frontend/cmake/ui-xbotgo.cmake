@@ -19,6 +19,7 @@ target_sources(
         xbotgo/services/XBotGoLiveStreamProvider.hpp
         xbotgo/sources/XBotGoFalconMSource.cpp
         xbotgo/sources/XBotGoFalconMSource.hpp
+        xbotgo/sources/XBotGoSourceObserver.hpp
 )
 
 target_link_libraries(obs-studio PRIVATE OBS::xbotgo-device-discovery)

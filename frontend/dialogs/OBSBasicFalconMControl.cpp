@@ -194,7 +194,7 @@ QString ModeLabel(uint16_t mode, bool beta)
 
 OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *parent)
 	: QWidget(parent),
-	  source(obs_source_get_ref(source_))
+	  sourceObserver(source_)
 {
 	OBSBasic *main = OBSBasic::Get();
 	cameraRoleControl = new xbotgo::ComboBoxControl(this);
@@ -205,17 +205,18 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 					   static_cast<int>(role));
 	}
 	cameraRoleControl->setCurrentIndex(
-	CameraRoleControlIndex(main ? xbotgo::GetSourceCameraRole(*main, source) : std::nullopt));
+		CameraRoleControlIndex(main ? xbotgo::GetSourceCameraRole(*main, source_) : std::nullopt));
 	connect(cameraRoleControl, &xbotgo::ComboBoxControl::currentIndexChanged, this, [this](int index) {
 		if (index < 0) {
 			return;
 		}
 
+		OBSSource source = sourceObserver.Lock();
 		OBSBasic *main = OBSBasic::Get();
 		const int previousIndex = CameraRoleControlIndex(
-			main ? xbotgo::GetSourceCameraRole(*main, source) : std::nullopt);
+			main && source ? xbotgo::GetSourceCameraRole(*main, source) : std::nullopt);
 		const auto role = static_cast<xbotgo::CameraRole>(cameraRoleControl->currentData().toInt());
-		if (!main || !xbotgo::AssignSourceToCameraRoleScene(*main, source, role)) {
+		if (!main || !source || !xbotgo::AssignSourceToCameraRoleScene(*main, source, role)) {
 			const QSignalBlocker blocker(cameraRoleControl);
 			cameraRoleControl->setCurrentIndex(previousIndex);
 		}
@@ -321,6 +322,7 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	hallCalibrationTimeout->setSingleShot(true);
 	hallCalibrationTimeout->setInterval(5000);
 	connect(hallCalibrationTimeout, &QTimer::timeout, this, [this] {
+		OBSSource source = sourceObserver.Lock();
 		const bool connected = xbotgo::IsFalconMSourceConnected(source);
 		const bool calibrating = currentHallCalibrationStatus ==
 			static_cast<int>(xbotgo::falconm_hall_calibration_status::calibrating);
@@ -333,15 +335,9 @@ OBSBasicFalconMControl::OBSBasicFalconMControl(obs_source_t *source_, QWidget *p
 	Refresh();
 }
 
-OBSBasicFalconMControl::~OBSBasicFalconMControl()
-{
-	if (source) {
-		obs_source_release(source);
-	}
-}
-
 void OBSBasicFalconMControl::Send(int direction, int operation)
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
@@ -356,6 +352,7 @@ void OBSBasicFalconMControl::Send(int direction, int operation)
 
 void OBSBasicFalconMControl::SendBuzzerMode(xbotgo::BuzzerMode mode)
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
@@ -369,6 +366,7 @@ void OBSBasicFalconMControl::SendBuzzerMode(xbotgo::BuzzerMode mode)
 
 void OBSBasicFalconMControl::QueryHallCalibration()
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		hallCalibrationStart->setEnabled(false);
 		return;
@@ -399,6 +397,7 @@ void OBSBasicFalconMControl::QueryHallCalibration()
 
 void OBSBasicFalconMControl::StartHallCalibration()
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
@@ -427,6 +426,7 @@ void OBSBasicFalconMControl::StartHallCalibration()
 
 void OBSBasicFalconMControl::UpdateHallCalibration()
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
@@ -462,6 +462,7 @@ void OBSBasicFalconMControl::UpdateHallCalibration()
 
 void OBSBasicFalconMControl::QueryCurrentZoom()
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		manualZoomSlider->setEnabled(false);
 		return;
@@ -491,6 +492,7 @@ void OBSBasicFalconMControl::QueryCurrentZoom()
 
 void OBSBasicFalconMControl::UpdateCurrentZoom()
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
@@ -526,6 +528,10 @@ bool OBSBasicFalconMControl::DisableAutoZoomForManualControl()
 	if (!hasConfirmedCaptureParameters) {
 		return false;
 	}
+	OBSSource source = sourceObserver.Lock();
+	if (!xbotgo::IsFalconMSourceConnected(source)) {
+		return false;
+	}
 
 	calldata_t cd;
 	calldata_init(&cd);
@@ -551,6 +557,7 @@ bool OBSBasicFalconMControl::DisableAutoZoomForManualControl()
 
 void OBSBasicFalconMControl::ManualZoomValueChanged(int value)
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source) || !hasCurrentManualZoom || !hasConfirmedCaptureParameters ||
 	    value < 10 || value > 30 || value == manualZoomCommandValue) {
 		return;
@@ -591,6 +598,7 @@ void OBSBasicFalconMControl::ManualZoomValueChanged(int value)
 
 void OBSBasicFalconMControl::UpdateManualZoomEnabled()
 {
+	OBSSource source = sourceObserver.Lock();
 	const bool connected = xbotgo::IsFalconMSourceConnected(source);
 	manualZoomSlider->setEnabled(connected && hasCurrentManualZoom && hasConfirmedCaptureParameters &&
 				     !parametersAutoZoom->isChecked());
@@ -598,6 +606,7 @@ void OBSBasicFalconMControl::UpdateManualZoomEnabled()
 
 void OBSBasicFalconMControl::QueryModes()
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		modeSelector->setEnabled(false);
 		return;
@@ -626,6 +635,7 @@ void OBSBasicFalconMControl::QueryModes()
 
 void OBSBasicFalconMControl::QueryCaptureParameters()
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		parametersAutoZoom->setEnabled(false);
 		parametersAutoTracking->setEnabled(false);
@@ -656,6 +666,7 @@ void OBSBasicFalconMControl::QueryCaptureParameters()
 
 void OBSBasicFalconMControl::ApplyAutoZoom(bool checked)
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source) || !hasConfirmedCaptureParameters ||
 	    checked == confirmedAutoZoom) {
 		return;
@@ -679,6 +690,7 @@ void OBSBasicFalconMControl::ApplyAutoZoom(bool checked)
 
 void OBSBasicFalconMControl::ApplyAutoTracking(bool checked)
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source) || !hasConfirmedCaptureParameters ||
 	    checked == confirmedAutoTracking) {
 		return;
@@ -701,6 +713,7 @@ void OBSBasicFalconMControl::ApplyAutoTracking(bool checked)
 
 void OBSBasicFalconMControl::ApplyAngleRange()
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source) || !hasConfirmedCaptureParameters ||
 	    parametersAngleRange->value() == confirmedAngleRange) {
 		return;
@@ -723,6 +736,7 @@ void OBSBasicFalconMControl::ApplyAngleRange()
 
 void OBSBasicFalconMControl::UpdateCaptureParameters()
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
@@ -761,6 +775,10 @@ void OBSBasicFalconMControl::UpdateCaptureParameters()
 
 void OBSBasicFalconMControl::UpdateModes()
 {
+	OBSSource source = sourceObserver.Lock();
+	if (!xbotgo::IsFalconMSourceConnected(source)) {
+		return;
+	}
 	calldata_t cd;
 	calldata_init(&cd);
 	proc_handler_call(obs_source_get_proc_handler(source), "get_supported_modes", &cd);
@@ -801,8 +819,8 @@ void OBSBasicFalconMControl::UpdateModes()
 
 void OBSBasicFalconMControl::SelectMode(int index)
 {
-	if (index < 0 || waitingForModes || waitingForModeResult ||
-	    !xbotgo::IsFalconMSourceConnected(source)) {
+	OBSSource source = sourceObserver.Lock();
+	if (index < 0 || waitingForModes || waitingForModeResult || !xbotgo::IsFalconMSourceConnected(source)) {
 		return;
 	}
 	const int mode = modeSelector->itemData(index).toInt();
@@ -838,6 +856,10 @@ void OBSBasicFalconMControl::HandleModeResult()
 	if (!waitingForModeResult) {
 		return;
 	}
+	OBSSource source = sourceObserver.Lock();
+	if (!xbotgo::IsFalconMSourceConnected(source)) {
+		return;
+	}
 	calldata_t cd;
 	calldata_init(&cd);
 	proc_handler_call(obs_source_get_proc_handler(source), "get_capture_mode_result", &cd);
@@ -860,6 +882,7 @@ void OBSBasicFalconMControl::HandleModeResult()
 
 void OBSBasicFalconMControl::RestoreConfirmedMode()
 {
+	OBSSource source = sourceObserver.Lock();
 	waitingForModeResult = false;
 	modeTimeout->stop();
 	const QSignalBlocker blocker(modeSelector);
@@ -869,7 +892,12 @@ void OBSBasicFalconMControl::RestoreConfirmedMode()
 
 void OBSBasicFalconMControl::Refresh()
 {
+	OBSSource source = sourceObserver.Lock();
 	if (!source) {
+		if (sourceWasConnected) {
+			sourceWasConnected = false;
+			emit connectionStateChanged(false);
+		}
 		return;
 	}
 	const bool connected = xbotgo::IsFalconMSourceConnected(source);

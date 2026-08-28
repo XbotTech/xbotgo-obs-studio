@@ -2,6 +2,7 @@
 
 #include <QDockWidget>
 #include <QHash>
+#include <QString>
 #include <QWidget>
 #include <obs.hpp>
 
@@ -20,7 +21,7 @@ class OBSBasicFalconMDevices : public QWidget {
 
 	QVBoxLayout *cardsLayout = nullptr;
 	QLabel *empty = nullptr;
-	QHash<obs_source_t *, FalconMDeviceCard *> cards;
+	QHash<QString, FalconMDeviceCard *> cards;
 	std::vector<OBSSignal> sourceSignals;
 
 public:
@@ -38,10 +39,11 @@ private:
 	static bool EnumSource(void *data, obs_source_t *source);
 	static void SourceCreated(void *data, calldata_t *calldata);
 	static void SourceRemoved(void *data, calldata_t *calldata);
+	static void SourceDestroyed(void *data, calldata_t *calldata);
 	static void SourceRenamed(void *data, calldata_t *calldata);
 
 	void AddSource(OBSSource source);
-	void RemoveSource(OBSSource source);
+	void RemoveSource(const QString &sourceId);
 	void RenameSource(OBSSource source, const QString &name);
 	void UpdateEmptyState();
 };
