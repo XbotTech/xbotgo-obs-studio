@@ -841,6 +841,7 @@ struct obs_source {
 
 	/* used to temporarily disable sources if needed */
 	bool enabled;
+	volatile bool render_fps_logging_enabled;
 
 	/* hint to allow sources to render more quickly */
 	bool texcoords_centered;

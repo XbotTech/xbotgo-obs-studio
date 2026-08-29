@@ -473,6 +473,7 @@ static void *falconm_create(obs_data_t *s, obs_source_t *source)
 		obs_data_get_int(s, "broker_port"));
 	auto *d = new falconm_source;
 	d->source = source;
+	obs_source_set_render_fps_logging_enabled(source, true);
 	d->stream = falconm_stream_create();
 	d->broker_address = obs_data_get_string(s, "broker_address");
 	d->device_id = obs_data_get_string(s, "device_id");
@@ -509,6 +510,7 @@ static void falconm_destroy(void *p)
 {
 	log_source_callback_thread("destroy");
 	auto *d = (falconm_source *)p;
+	obs_source_set_render_fps_logging_enabled(d->source, false);
 	d->stopping = true;
 	{
 		std::lock_guard<std::mutex> lock(d->scene_fit_mutex);
