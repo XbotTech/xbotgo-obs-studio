@@ -4,7 +4,9 @@
 
 #include <obs.hpp>
 
+#include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <optional>
 #include <vector>
 
@@ -16,11 +18,18 @@ enum class CameraRole;
 
 class AutoDirector final : public QObject {
 public:
+	static constexpr int MinimumSwitchCooldownSeconds = 1;
+	static constexpr int MaximumSwitchCooldownSeconds = 10;
+	static constexpr int DefaultSwitchCooldownSeconds = 3;
+
 	explicit AutoDirector(OBSBasic &main);
 	~AutoDirector() override;
 
 	void start();
 	void stop();
+	bool isStarted() const noexcept { return started_; }
+	int switchCooldownSeconds() const noexcept { return switchCooldownSeconds_; }
+	void setSwitchCooldownSeconds(int seconds);
 
 private:
 	enum class CenterConfigurationState {
@@ -48,10 +57,11 @@ private:
 
 	OBSBasic &main_;
 	bool started_ = false;
+	int switchCooldownSeconds_ = DefaultSwitchCooldownSeconds;
+	std::atomic<uint64_t> angleEventGeneration_{0};
 	std::vector<OBSSignal> globalSignals_;
 	std::optional<std::chrono::steady_clock::time_point> lastSwitch_;
 	CenterConfigurationState centerConfigurationState_ = CenterConfigurationState::Unknown;
-
 };
 
 } // namespace xbotgo

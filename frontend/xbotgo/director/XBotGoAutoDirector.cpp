@@ -13,6 +13,7 @@
 #include <QThread>
 
 #include <cmath>
+#include <stdexcept>
 
 namespace xbotgo {
 namespace {
@@ -46,6 +47,7 @@ void AutoDirector::start()
 	}
 
 	started_ = true;
+	angleEventGeneration_.fetch_add(1, std::memory_order_relaxed);
 	globalSignals_.reserve(3);
 	globalSignals_.emplace_back(obs_get_signal_handler(), "source_create", SourceCreated, this);
 	globalSignals_.emplace_back(obs_get_signal_handler(), "source_remove", SourceRemoved, this);
@@ -61,6 +63,7 @@ void AutoDirector::stop()
 	}
 
 	started_ = false;
+	angleEventGeneration_.fetch_add(1, std::memory_order_relaxed);
 	globalSignals_.clear();
 	obs_enum_sources(DisconnectExistingSource, this);
 	lastSwitch_.reset();
@@ -68,15 +71,29 @@ void AutoDirector::stop()
 	blog(LOG_INFO, "XBotGo auto director stopped");
 }
 
+void AutoDirector::setSwitchCooldownSeconds(int seconds)
+{
+	if (QThread::currentThread() != thread()) {
+		throw std::logic_error("XBotGo auto director cooldown changed outside the Qt UI thread");
+	}
+	if (seconds < MinimumSwitchCooldownSeconds || seconds > MaximumSwitchCooldownSeconds) {
+		throw std::out_of_range("XBotGo auto director cooldown is outside the supported range");
+	}
+
+	switchCooldownSeconds_ = seconds;
+}
+
 void AutoDirector::SourceCreated(void *context, calldata_t *params)
 {
 	auto *director = static_cast<AutoDirector *>(context);
 	auto *source = static_cast<obs_source_t *>(calldata_ptr(params, "source"));
 	OBSSource sourceRef(source);
+	const uint64_t generation = director->angleEventGeneration_.load(std::memory_order_relaxed);
 	QMetaObject::invokeMethod(
 		director,
-		[director, sourceRef] {
-			if (director->started_ && sourceRef && !obs_source_removed(sourceRef)) {
+		[director, sourceRef, generation] {
+			if (director->started_ && sourceRef && !obs_source_removed(sourceRef) &&
+			    director->angleEventGeneration_.load(std::memory_order_relaxed) == generation) {
 				director->attachSource(sourceRef);
 			}
 		},
@@ -101,10 +118,12 @@ void AutoDirector::MotorAngleReported(void *context, calldata_t *params)
 
 	const auto reportedAt = std::chrono::steady_clock::now();
 	OBSSource sourceRef(source);
+	const uint64_t generation = director->angleEventGeneration_.load(std::memory_order_relaxed);
 	QMetaObject::invokeMethod(
 		director,
-		[director, sourceRef, horizontal, reportedAt] {
-			if (director->started_) {
+		[director, sourceRef, horizontal, reportedAt, generation] {
+			if (director->started_ &&
+			    director->angleEventGeneration_.load(std::memory_order_relaxed) == generation) {
 				director->processMotorAngle(sourceRef, horizontal, reportedAt);
 			}
 		},
@@ -242,14 +261,13 @@ void AutoDirector::setCenterConfigurationState(CenterConfigurationState state)
 	centerConfigurationState_ = state;
 }
 
-void AutoDirector::processMotorAngle(
-	obs_source_t *source,
-	double horizontal,
-	std::chrono::steady_clock::time_point reportedAt
-	)
+void AutoDirector::processMotorAngle(obs_source_t *source, double horizontal,
+				     std::chrono::steady_clock::time_point reportedAt)
 {
 	if (QThread::currentThread() != thread()) {
-		blog(LOG_ERROR, "XBotGo auto director rejected motor angle outside the Qt UI thread");
+		throw std::logic_error("XBotGo auto director processed motor angle outside the Qt UI thread");
+	}
+	if (!started_) {
 		return;
 	}
 
@@ -260,7 +278,8 @@ void AutoDirector::processMotorAngle(
 	}
 
 	// 2. 冷却中跳过本次检测
-	if (AutoDirectorPolicy::IsSwitchCoolingDown(lastSwitch_, reportedAt)) {
+	if (AutoDirectorPolicy::IsSwitchCoolingDown(lastSwitch_, reportedAt,
+						    std::chrono::seconds{switchCooldownSeconds_})) {
 		return;
 	}
 

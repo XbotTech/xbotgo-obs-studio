@@ -285,9 +285,9 @@ public:
 		m.payload = const_cast<uint8_t *>(payload.data());
 		m.payloadlen = (uint32_t)payload.size();
 		const std::string payload_hex = payload_to_hex(payload.data(), payload.size());
-		// FALCONM_LOG_INFO(
-		// 	"FalconM: this=%p uniqueID=%d sendPeerMessage device='%s' topic='%s' payloadlen=%u payload=%s",
-		// 	(void *)this, instance_id_, device_id_.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
+		FALCONM_LOG_INFO(
+			"FalconM: this=%p uniqueID=%d sendPeerMessage device='%s' topic='%s' payloadlen=%u payload=%s",
+			(void *)this, instance_id_, device_id_.c_str(), m.topic.c_str(), m.payloadlen, payload_hex.c_str());
 		return session->sendPeerMessage(device_id_, m) == 0;
 	}
 	falconm_device_state state() const override

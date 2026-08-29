@@ -33,6 +33,7 @@
 #include <dialogs/NameDialog.hpp>
 #include <dialogs/OBSAbout.hpp>
 #include <dialogs/OBSBasicAdvAudio.hpp>
+#include <dialogs/OBSBasicFalconMDevices.hpp>
 #include <dialogs/OBSBasicFilters.hpp>
 #include <dialogs/OBSBasicInteraction.hpp>
 #include <dialogs/OBSBasicProperties.hpp>
@@ -256,6 +257,8 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 	api = InitializeAPIInterface(this);
 
 	ui->setupUi(this);
+	xbotgoAutoDirector = std::make_unique<xbotgo::AutoDirector>(*this);
+	xbotgoAutoDirector->start();
 	ui->previewDisabledWidget->setVisible(false);
 	xbotgoLiveStreamProvider = std::make_unique<xbotgo::HttpLiveStreamProvider>();
 
@@ -377,6 +380,13 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 	int sideDockWidth = std::min(width() * 30 / 100, 320);
 	resizeDocks({ui->scenesDock, ui->sourcesDock}, {sideDockWidth, sideDockWidth}, Qt::Horizontal);
 	addDockWidget(Qt::BottomDockWidgetArea, controlsDock);
+	falconMDevicesDock = new OBSDock(this);
+	falconMDevicesDock->setObjectName(QStringLiteral("xbotgoDeviceManagementDock"));
+	falconMDevicesDock->setWindowTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement"));
+	OBSBasicFalconMDevices::ConfigureDock(*falconMDevicesDock);
+	falconMDevices = new OBSBasicFalconMDevices(*xbotgoAutoDirector, falconMDevicesDock);
+	falconMDevicesDock->setWidget(falconMDevices);
+	addDockWidget(Qt::RightDockWidgetArea, falconMDevicesDock);
 
 	startingDockLayout = saveState();
 
@@ -1270,6 +1280,10 @@ void OBSBasic::OBSInit()
 		}
 	}
 
+	addDockWidget(Qt::RightDockWidgetArea, falconMDevicesDock);
+	falconMDevicesDock->setFloating(false);
+	falconMDevicesDock->show();
+
 	bool pre23Defaults = config_get_bool(App()->GetUserConfig(), "General", "Pre23Defaults");
 	if (pre23Defaults) {
 		bool resetDockLock23 = config_get_bool(App()->GetUserConfig(), "General", "ResetDockLock23");
@@ -1409,9 +1423,6 @@ void OBSBasic::OBSInit()
 void OBSBasic::OnFirstLoad()
 {
 	OnEvent(OBS_FRONTEND_EVENT_FINISHED_LOADING);
-
-	xbotgoAutoDirector = std::make_unique<xbotgo::AutoDirector>(*this);
-	xbotgoAutoDirector->start();
 
 #ifdef WHATSNEW_ENABLED
 	/* Attempt to load init screen if available */
