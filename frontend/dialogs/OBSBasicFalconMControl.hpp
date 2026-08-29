@@ -1,5 +1,7 @@
 #pragma once
 
+#include <xbotgo/sources/XBotGoSourceObserver.hpp>
+
 #include <QWidget>
 #include <obs.h>
 
@@ -23,7 +25,7 @@ enum class BuzzerMode : uint8_t;
 
 class OBSBasicFalconMControl : public QWidget {
 	Q_OBJECT
-	obs_source_t *source = nullptr;
+	xbotgo::SourceObserver sourceObserver;
 	xbotgo::ComboBoxControl *cameraRoleControl = nullptr;
 	QLabel *angles = nullptr;
 	std::vector<QPushButton *> directionButtons;
@@ -61,7 +63,6 @@ class OBSBasicFalconMControl : public QWidget {
 
 public:
 	explicit OBSBasicFalconMControl(obs_source_t *source, QWidget *parent = nullptr);
-	~OBSBasicFalconMControl() override;
 
 signals:
 	void connectionStateChanged(bool connected);

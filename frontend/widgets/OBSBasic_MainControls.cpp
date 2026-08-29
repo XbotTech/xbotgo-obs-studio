@@ -683,13 +683,9 @@ void OBSBasic::on_idianPlayground_triggered()
 
 void OBSBasic::on_actionXBotGoDeviceManagement_triggered()
 {
-	if (!falconMDevices) {
-		falconMDevices = new OBSBasicFalconMDevices(this);
-		falconMDevices->setAttribute(Qt::WA_DeleteOnClose);
-	}
-	falconMDevices->show();
-	falconMDevices->raise();
-	falconMDevices->activateWindow();
+	falconMDevicesDock->show();
+	falconMDevicesDock->raise();
+	falconMDevices->setFocus(Qt::ShortcutFocusReason);
 }
 
 void OBSBasic::on_actionXBotGoStartStreaming_triggered()

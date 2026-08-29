@@ -583,6 +583,7 @@ private:
 	QPointer<OBSBasicProperties> properties;
 	QPointer<OBSBasicTransform> transformWindow;
 	QPointer<OBSBasicAdvAudio> advAudioWindow;
+	QPointer<QDockWidget> falconMDevicesDock;
 	QPointer<OBSBasicFalconMDevices> falconMDevices;
 	QPointer<OBSBasicFilters> filters;
 	QPointer<OBSAbout> about;

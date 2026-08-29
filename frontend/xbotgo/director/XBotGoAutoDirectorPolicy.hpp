@@ -38,9 +38,10 @@ constexpr CameraRole CameraRoleForHorizontalAngle(double angle)
 }
 
 inline bool IsSwitchCoolingDown(std::optional<std::chrono::steady_clock::time_point> lastSwitch,
-				std::chrono::steady_clock::time_point now)
+				std::chrono::steady_clock::time_point now,
+				std::chrono::seconds cooldown = SwitchCooldown)
 {
-	return lastSwitch && now - *lastSwitch < SwitchCooldown;
+	return lastSwitch && now - *lastSwitch < cooldown;
 }
 
 } // namespace xbotgo::AutoDirectorPolicy
