@@ -33,7 +33,7 @@ Qt 控制窗口
 [direction, operation]
 ```
 
-方向枚举定义在 `plugins/xbotogo-falconM/falconm-stream.hpp`：
+方向枚举定义在 `plugins/xbotgo/falconm-stream.hpp`：
 
 ```text
 0 up
@@ -186,8 +186,8 @@ OBS 通用 API 说明见：
 
 控制窗口文件：
 
-- `plugins/xbotogo-falconM/ui/falconm-control-widget.hpp`
-- `plugins/xbotogo-falconM/ui/falconm-control-widget.cpp`
+- `plugins/xbotgo/ui/falconm-control-widget.hpp`
+- `plugins/xbotgo/ui/falconm-control-widget.cpp`
 
 窗口每 500ms 调用 `get_motor_angle` 刷新：
 
@@ -227,8 +227,8 @@ source create
 
 新增控制窗口已加入 `frontend/cmake/ui-dialogs.cmake`，并增加了英文和中文方向按钮文本：
 
-- `plugins/xbotogo-falconM/data/locale/en-US.ini`
-- `plugins/xbotogo-falconM/data/locale/zh-CN.ini`
+- `plugins/xbotgo/data/locale/en-US.ini`
+- `plugins/xbotgo/data/locale/zh-CN.ini`
 
 ## 验证状态
 

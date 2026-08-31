@@ -61,9 +61,9 @@ if(ENABLE_FRONTEND)
   target_sources(
     xbotogo-falconM
     PRIVATE
-          device-search/device-info.hpp
-          device-search/device-search-dialog.cpp
-          device-search/device-search-dialog.hpp
+      device-search/device-info.hpp
+      device-search/device-search-dialog.cpp
+      device-search/device-search-dialog.hpp
       director/auto-director.cpp
       director/auto-director.hpp
       director/auto-director-policy.hpp
@@ -110,8 +110,14 @@ if(ENABLE_UNIT_TESTS)
   find_package(CURL REQUIRED)
   find_package(Qt6 REQUIRED Core Network)
 
-  add_executable(falconm-protocol-test falconm-protocol-test.cpp falconm-protocol.hpp falconm-time.cpp falconm-time.hpp
-          device-search/device-search-dialog.hpp)
+  add_executable(
+    falconm-protocol-test
+    falconm-protocol-test.cpp
+    falconm-protocol.hpp
+    falconm-time.cpp
+    falconm-time.hpp
+    device-search/device-search-dialog.hpp
+  )
   target_include_directories(falconm-protocol-test PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
   target_link_libraries(falconm-protocol-test PRIVATE "-framework CoreFoundation")
   add_test(NAME falconm-protocol-test COMMAND falconm-protocol-test)

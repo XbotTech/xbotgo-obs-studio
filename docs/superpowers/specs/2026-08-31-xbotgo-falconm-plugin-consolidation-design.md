@@ -9,7 +9,7 @@
 ## 目标
 
 将 XBotGo 菜单、直播任务、FalconM 设备管理、设备控制、角色场景和自动导播全部迁入
-`plugins/xbotogo-falconM/`，并继续只生成 `xbotogo-falconM` 一个插件动态模块。
+`plugins/xbotgo/`，并继续只生成 `xbotogo-falconM` 一个插件动态模块。
 
 迁移完成后，删除或禁用该插件应同时移除全部 XBotGo 功能；OBS frontend 不再包含 XBotGo/FalconM
 实现、状态、菜单、Dock 或本地化文案。用户看到的顶层 **XBotGo** 菜单、设备管理 Dock 和业务行为保持不变。
@@ -30,7 +30,7 @@
 插件内部按职责组织：
 
 ```text
-plugins/xbotogo-falconM/
+plugins/xbotgo/
 ├── runtime/        插件 UI 生命周期、frontend event 分发、顶层菜单
 ├── ui/             设备管理 Dock、设备卡片、控制窗口和通用控件
 ├── live/           直播配置模型、请求、对话框、心跳和状态机

@@ -12,7 +12,7 @@
 
 ### Task 1: Protocol and stream API
 
-**Files:** `plugins/xbotogo-falconM/falconm-stream.hpp`, `plugins/xbotogo-falconM/falconm-stream.cpp`, new protocol helper files.
+**Files:** `plugins/xbotgo/falconm-stream.hpp`, `plugins/xbotgo/falconm-stream.cpp`, new protocol helper files.
 
 - [ ] Define direction/operation enums, motor-angle state, and callbacks.
 - [ ] Add AYR, BXR, and DGR send methods; parse BXA/DFA with bounds checks and big-endian signed angles.
@@ -20,7 +20,7 @@
 
 ### Task 2: FalconM source control bridge
 
-**Files:** `plugins/xbotogo-falconM/falconm.hpp`, `plugins/xbotogo-falconM/falconm-source.cpp`, plugin public header/CMake.
+**Files:** `plugins/xbotgo/falconm.hpp`, `plugins/xbotgo/falconm-source.cpp`, plugin public header/CMake.
 
 - [ ] Forward control methods and angle callbacks from each source instance.
 - [ ] Query angle and enable periodic reporting after peer connection; disable reporting before disconnect.

@@ -18,7 +18,7 @@
 | --- | --- |
 | `libobs/` | OBS 核心库：场景、Source、Output、Encoder、Service 等基础抽象 |
 | `frontend/` | 上游 OBS Qt 桌面端 |
-| `plugins/` | OBS 官方插件及业务插件；XBotGo/FalconM 全部实现位于 `plugins/xbotogo-falconM/` |
+| `plugins/` | OBS 官方插件及业务插件；XBotGo/FalconM 全部实现位于 `plugins/xbotgo/` |
 | `libobs-opengl/`、`libobs-metal/` | OpenGL 和 Metal 图形后端 |
 | `deps/`、`shared/` | 第三方组件及 OBS 公共组件 |
 | `cmake/`、`build-aux/` | CMake 模块、依赖准备、构建和打包辅助脚本 |
@@ -46,15 +46,15 @@ XBotGo FalconM 插件
 
 | 功能 | 入口文件 |
 | --- | --- |
-| XBotGo 菜单、Dock 与运行时 | `plugins/xbotogo-falconM/runtime/xbotgo-plugin-runtime.cpp` |
-| 直播配置对话框 | `plugins/xbotogo-falconM/live/live-stream-config-dialog.cpp` |
-| 直播任务请求、心跳与停止 | `plugins/xbotogo-falconM/live/live-task-client.cpp`、`plugins/xbotogo-falconM/live/live-stream-runtime.cpp` |
-| 设备搜索对话框 | `plugins/xbotogo-falconM/device-search/device-search-dialog.cpp` |
-| SSDP 响应解析 | `plugins/xbotogo-falconM/device-search/XBotGoSsdpParser.cpp` |
-| FalconM Source 注册 | `plugins/xbotogo-falconM/xbotogo-falconM.cpp` |
-| FalconM Source 生命周期 | `plugins/xbotogo-falconM/falconm-source.cpp` |
-| Media SDK 数据接入 | `plugins/xbotogo-falconM/falconm-stream.cpp` |
-| 中英文文案 | `plugins/xbotogo-falconM/data/locale/en-US.ini`、`plugins/xbotogo-falconM/data/locale/zh-CN.ini` |
+| XBotGo 菜单、Dock 与运行时 | `plugins/xbotgo/runtime/xbotgo-plugin-runtime.cpp` |
+| 直播配置对话框 | `plugins/xbotgo/live/live-stream-config-dialog.cpp` |
+| 直播任务请求、心跳与停止 | `plugins/xbotgo/live/live-task-client.cpp`、`plugins/xbotgo/live/live-stream-runtime.cpp` |
+| 设备搜索对话框 | `plugins/xbotgo/device-search/device-search-dialog.cpp` |
+| SSDP 响应解析 | `plugins/xbotgo/device-search/XBotGoSsdpParser.cpp` |
+| FalconM Source 注册 | `plugins/xbotgo/xbotogo-falconM.cpp` |
+| FalconM Source 生命周期 | `plugins/xbotgo/falconm-source.cpp` |
+| Media SDK 数据接入 | `plugins/xbotgo/falconm-stream.cpp` |
+| 中英文文案 | `plugins/xbotgo/data/locale/en-US.ini`、`plugins/xbotgo/data/locale/zh-CN.ini` |
 
 ## 构建环境
 
@@ -106,7 +106,7 @@ cmake --build build_macos_xcode --config Debug --target obs-studio --parallel 8
 
 需要生成可安装的 arm64 DMG 时，请参考 [macOS 打包与发布说明](docs/macos-packaging.md)。文档分别记录了内部测试包、Developer ID 正式签名包、Apple 公证和产物验证流程。
 
-构建过程中，`plugins/xbotogo-falconM/CMakeLists.txt` 会把 `libmedia_sdk.1.0.0.dylib` 复制到插件旁的 `Frameworks` 目录，并设置运行时搜索路径。
+构建过程中，`plugins/xbotgo/CMakeLists.txt` 会把 `libmedia_sdk.1.0.0.dylib` 复制到插件旁的 `Frameworks` 目录，并设置运行时搜索路径。
 FalconM 默认在每次 `connect()` 时创建并启动一个新 Media SDK Session，在 `disconnect()` 时停止并销毁。若需要保留旧的“每个 Source 生命周期只创建一次 Session”行为，可在配置时传入 `-DSESSION_CREATE_ONCE=ON`。
 
 ## 使用流程
@@ -161,7 +161,7 @@ X-Protocol-Version: <0-65535>
 4. 确认后由 OBS 创建自定义推流服务并开始推流。
 5. 推流期间客户端每 10 秒发送一次任务心跳，停止推流时通知服务端结束任务。
 
-直播服务地址及请求字段目前直接定义在 `plugins/xbotogo-falconM/live/live-task-client.cpp` 中。切换测试/生产环境或接入认证信息时，应优先将这些配置外置，避免把密钥或令牌提交到仓库。
+直播服务地址及请求字段目前直接定义在 `plugins/xbotgo/live/live-task-client.cpp` 中。切换测试/生产环境或接入认证信息时，应优先将这些配置外置，避免把密钥或令牌提交到仓库。
 
 ## 调试与排查
 
@@ -184,7 +184,7 @@ FalconM 设备控制连接成功时会发送一次当前系统时间和时区；
 
 ## 开发约定
 
-- 避免直接修改与需求无关的上游 OBS 代码，XBotGo 业务代码统一放入 `plugins/xbotogo-falconM/`。
+- 避免直接修改与需求无关的上游 OBS 代码，XBotGo 业务代码统一放入 `plugins/xbotgo/`。
 - 新增界面文案时同时维护 `en-US.ini` 和 `zh-CN.ini`。
 - 修改 FalconM 设备发现实现后，构建插件并验证 Source 属性页的设备搜索流程。
 - 不要提交构建目录、用户配置、日志、签名文件、访问令牌或其他敏感信息。
