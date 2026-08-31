@@ -1,5 +1,5 @@
 #include "falconm.hpp"
-#include "falconm-log.hpp"
+#include "xblog.hpp"
 
 #include "device-search/device-search-dialog.hpp"
 #include <QApplication>
@@ -165,13 +165,12 @@ static void fit_falconm_source_to_canvas(void *param)
 			data->scene_fit_ready = ready;
 		}
 
-		FALCONM_LOG_INFO(
-			"FalconM: %s fitted %zu scene item(s) to %ux%u canvas; ready=%s dropped_frames=%llu "
-			"total_dropped_frames=%llu",
-			task->fit_all ? "full scene pass" : "new item pass", context.fitted_items,
-			video_info.base_width, video_info.base_height, ready ? "true" : "false",
-			static_cast<unsigned long long>(dropped_frames),
-			static_cast<unsigned long long>(total_dropped_frames));
+		XBLOG_INFO("%s fitted %zu scene item(s) to %ux%u canvas; ready=%s dropped_frames=%llu "
+			   "total_dropped_frames=%llu",
+			   task->fit_all ? "full scene pass" : "new item pass", context.fitted_items,
+			   video_info.base_width, video_info.base_height, ready ? "true" : "false",
+			   static_cast<unsigned long long>(dropped_frames),
+			   static_cast<unsigned long long>(total_dropped_frames));
 		if (context.fitted_items) {
 			obs_frontend_save();
 		}
@@ -222,8 +221,8 @@ static void request_falconm_scene_item_fit(obs_sceneitem_t *item)
 	}
 
 	if (paused) {
-		FALCONM_LOG_INFO("FalconM: new scene item id=%lld; paused video output until its transform is fitted",
-				 static_cast<long long>(key.item_id));
+		XBLOG_INFO("new scene item id=%lld; paused video output until its transform is fitted",
+			   static_cast<long long>(key.item_id));
 	}
 }
 
@@ -301,8 +300,8 @@ static StreamingResolution get_streaming_resolution(obs_data_t *settings)
 		return resolution;
 	}
 
-	blog(LOG_WARNING, "FalconM: invalid streaming resolution=%lld; falling back to 4K/30",
-	     obs_data_get_int(settings, STREAMING_RESOLUTION_SETTING));
+	XBLOG_WARNING("invalid streaming resolution=%lld; falling back to 4K/30",
+		      obs_data_get_int(settings, STREAMING_RESOLUTION_SETTING));
 	return StreamingResolution::K4;
 }
 
@@ -325,13 +324,13 @@ static void log_source_callback_thread(const char *callback_name)
 	uint64_t thread_id = 0;
 	const bool is_main_thread = pthread_main_np() != 0;
 	if (pthread_threadid_np(nullptr, &thread_id) != 0) {
-		blog(LOG_WARNING, "FalconM: callback=%s thread_id=unavailable is_main_thread=%s", callback_name,
-		     is_main_thread ? "true" : "false");
+		XBLOG_WARNING("callback=%s thread_id=unavailable is_main_thread=%s", callback_name,
+			      is_main_thread ? "true" : "false");
 		return;
 	}
 
-	FALCONM_LOG_INFO("FalconM: callback=%s thread_id=%llu is_main_thread=%s", callback_name,
-			 static_cast<unsigned long long>(thread_id), is_main_thread ? "true" : "false");
+	XBLOG_INFO("callback=%s thread_id=%llu is_main_thread=%s", callback_name,
+		   static_cast<unsigned long long>(thread_id), is_main_thread ? "true" : "false");
 }
 
 static uint16_t get_broker_port(obs_data_t *settings)
@@ -370,12 +369,11 @@ static void output_video(falconm_source *d, const obs_source_frame &in)
 		total_dropped_frames = ++d->scene_fit_total_dropped_frames;
 	}
 
-	FALCONM_LOG_INFO(
-		"FalconM: dropped video frame while waiting for scene transform; size=%ux%u timestamp=%llu "
-		"dropped_frames=%llu total_dropped_frames=%llu",
-		in.width, in.height, static_cast<unsigned long long>(in.timestamp),
-		static_cast<unsigned long long>(dropped_frames),
-		static_cast<unsigned long long>(total_dropped_frames));
+	XBLOG_INFO("dropped video frame while waiting for scene transform; size=%ux%u timestamp=%llu "
+		   "dropped_frames=%llu total_dropped_frames=%llu",
+		   in.width, in.height, static_cast<unsigned long long>(in.timestamp),
+		   static_cast<unsigned long long>(dropped_frames),
+		   static_cast<unsigned long long>(total_dropped_frames));
 }
 
 static void output_audio(falconm_source *d, const obs_source_audio &in)
@@ -436,7 +434,7 @@ static void falconm_control_worker(falconm_source *d)
 		d->stopping = false;
 		if (!d->stream->connect(device_id, broker_address, broker_port,
 					get_encoder_options(streaming_resolution))) {
-			blog(LOG_ERROR, "FalconM: asynchronous connect failed for device '%s'", device_id.c_str());
+			XBLOG_ERROR("asynchronous connect failed for device '%s'", device_id.c_str());
 			d->stopping = true;
 			continue;
 		}
@@ -461,10 +459,9 @@ static void falconm_request_reconnect(falconm_source *d)
 static void *falconm_create(obs_data_t *s, obs_source_t *source)
 {
 	log_source_callback_thread("create");
-	FALCONM_LOG_INFO(
-		"FalconM: falconm_create settings=%p source=%p broker_address='%s' device_id='%s' broker_port=%lld",
-		(void *)s, (void *)source, obs_data_get_string(s, "broker_address"), obs_data_get_string(s, "device_id"),
-		obs_data_get_int(s, "broker_port"));
+	XBLOG_INFO("falconm_create settings=%p source=%p broker_address='%s' device_id='%s' broker_port=%lld",
+		   (void *)s, (void *)source, obs_data_get_string(s, "broker_address"),
+		   obs_data_get_string(s, "device_id"), obs_data_get_int(s, "broker_port"));
 	auto *d = new falconm_source;
 	d->source = source;
 	obs_source_set_render_fps_logging_enabled(source, true);
@@ -476,7 +473,7 @@ static void *falconm_create(obs_data_t *s, obs_source_t *source)
 	signal_handler_t *signalHandler = obs_source_get_signal_handler(source);
 	if (!signalHandler ||
 	    !signal_handler_add(signalHandler, "void motor_angle_report(ptr source, float horizontal)")) {
-		blog(LOG_WARNING, "FalconM: failed to register motor angle report signal");
+		XBLOG_WARNING("failed to register motor angle report signal");
 	}
 	d->stream->setDecodedFrameCallback([d](const obs_source_frame &f) { output_video(d, f); });
 	d->stream->setAudioCallback([d](const obs_source_audio &f) { output_audio(d, f); });
@@ -495,8 +492,8 @@ static void *falconm_create(obs_data_t *s, obs_source_t *source)
 	});
 	d->control_thread = std::thread(falconm_control_worker, d);
 	falconm_request_reconnect(d);
-	FALCONM_LOG_INFO("FalconM: falconm_create result=%p broker_address='%s' device_id='%s' broker_port=%u",
-			 (void *)d, d->broker_address.c_str(), d->device_id.c_str(), d->broker_port);
+	XBLOG_INFO("falconm_create result=%p broker_address='%s' device_id='%s' broker_port=%u", (void *)d,
+		   d->broker_address.c_str(), d->device_id.c_str(), d->broker_port);
 	falconm_register_proc_handler(d);
 	return d;
 }
@@ -540,14 +537,14 @@ static void falconm_update(void *p, obs_data_t *s)
 		const bool connection_changed = d->broker_address != broker_address || d->device_id != device_id ||
 					 d->broker_port != broker_port || d->streaming_resolution != streaming_resolution;
 
-		FALCONM_LOG_INFO(
-			"FalconM: falconm_update source_data=%p settings=%p settings.broker_address='%s' "
-			"settings.device_id='%s' settings.broker_port=%lld current.broker_address='%s' "
-			"current.device_id='%s' current.broker_port=%u settings.streaming_resolution=%lld "
-			"current.streaming_resolution=%lld",
-			p, (void *)s, broker_address.c_str(), device_id.c_str(), obs_data_get_int(s, "broker_port"),
-			d->broker_address.c_str(), d->device_id.c_str(), d->broker_port,
-			obs_data_get_int(s, STREAMING_RESOLUTION_SETTING), static_cast<long long>(d->streaming_resolution));
+		XBLOG_INFO("falconm_update source_data=%p settings=%p settings.broker_address='%s' "
+			   "settings.device_id='%s' settings.broker_port=%lld current.broker_address='%s' "
+			   "current.device_id='%s' current.broker_port=%u settings.streaming_resolution=%lld "
+			   "current.streaming_resolution=%lld",
+			   p, (void *)s, broker_address.c_str(), device_id.c_str(), obs_data_get_int(s, "broker_port"),
+			   d->broker_address.c_str(), d->device_id.c_str(), d->broker_port,
+			   obs_data_get_int(s, STREAMING_RESOLUTION_SETTING),
+			   static_cast<long long>(d->streaming_resolution));
 
 		d->broker_address = broker_address;
 		d->device_id = device_id;
@@ -583,8 +580,8 @@ static void falconm_video_tick(void *p, float)
 			data->scene_fit_pending_items.clear();
 		}
 		if (paused) {
-			FALCONM_LOG_INFO("FalconM: canvas changed to %ux%u; paused video output for a full scene fit",
-					 video_info.base_width, video_info.base_height);
+			XBLOG_INFO("canvas changed to %ux%u; paused video output for a full scene fit",
+				   video_info.base_width, video_info.base_height);
 		}
 	}
 
@@ -1168,9 +1165,9 @@ static void falconm_defaults(obs_data_t *s)
 	obs_data_set_default_string(s, "device_id", "");
 	obs_data_set_default_int(s, "broker_port", DEFAULT_MQTT_PORT);
 	obs_data_set_default_int(s, STREAMING_RESOLUTION_SETTING, static_cast<long long>(StreamingResolution::K4));
-	FALCONM_LOG_INFO("FalconM: falconm_defaults settings=%p broker_address='%s' device_id='%s' broker_port=%lld",
-			 (void *)s, obs_data_get_string(s, "broker_address"), obs_data_get_string(s, "device_id"),
-			 obs_data_get_int(s, "broker_port"));
+	XBLOG_INFO("falconm_defaults settings=%p broker_address='%s' device_id='%s' broker_port=%lld", (void *)s,
+		   obs_data_get_string(s, "broker_address"), obs_data_get_string(s, "device_id"),
+		   obs_data_get_int(s, "broker_port"));
 	obs_data_set_default_string(s, "device_version", "");
 	obs_data_set_default_string(s, "device_serial_number", "");
 }

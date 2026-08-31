@@ -1,6 +1,7 @@
 #include "live-task-client.hpp"
 
 #include "live-stream-parser.hpp"
+#include "xblog.hpp"
 
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -83,7 +84,7 @@ void LiveTaskClient::requestStart(QObject *context, const QString &liveTitle, St
 	post(LiveStartUrl, QJsonDocument(requestBody).toJson(QJsonDocument::Compact), context,
 	     [callback = std::move(callback)](CurlPostResult result) mutable {
 		     if (result.transportCode != 0) {
-			     blog(LOG_WARNING, "XBotGo live start request failed (%d)", result.transportCode);
+			     XBLOG_WARNING("XBotGo live start request failed (%d)", result.transportCode);
 			     callback(std::nullopt, std::move(result.error));
 			     return;
 		     }
@@ -103,12 +104,12 @@ void LiveTaskClient::requestHeartbeat(QObject *context, const QString &taskId, C
 	post(HeartbeatUrl, TaskBody(taskId), context, [callback = std::move(callback)](CurlPostResult result) mutable {
 		QString error;
 		if (result.transportCode != 0) {
-			blog(LOG_WARNING, "XBotGo heartbeat request failed (%d)", result.transportCode);
+			XBLOG_WARNING("XBotGo heartbeat request failed (%d)", result.transportCode);
 			error = std::move(result.error);
 		} else {
 			error = CompletionError(result.body);
 			if (!error.isEmpty()) {
-				blog(LOG_WARNING, "XBotGo heartbeat request was rejected");
+				XBLOG_WARNING("XBotGo heartbeat request was rejected");
 			}
 		}
 		if (callback) {
@@ -126,12 +127,12 @@ void LiveTaskClient::requestStop(QObject *context, QString taskId, Completion ca
 	post(LiveStopUrl, TaskBody(taskId), context, [callback = std::move(callback)](CurlPostResult result) mutable {
 		QString error;
 		if (result.transportCode != 0) {
-			blog(LOG_WARNING, "XBotGo stop request failed (%d)", result.transportCode);
+			XBLOG_WARNING("XBotGo stop request failed (%d)", result.transportCode);
 			error = std::move(result.error);
 		} else {
 			error = CompletionError(result.body);
 			if (!error.isEmpty()) {
-				blog(LOG_WARNING, "XBotGo stop request was rejected");
+				XBLOG_WARNING("XBotGo stop request was rejected");
 			}
 		}
 		if (callback) {
