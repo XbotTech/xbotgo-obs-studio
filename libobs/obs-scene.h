@@ -91,6 +91,9 @@ struct obs_scene_item {
 	uint32_t show_transition_duration;
 	uint32_t hide_transition_duration;
 
+	uint64_t render_frame_count;
+	uint64_t render_start_time_ms;
+
 	/* would do **prev_next, but not really great for reordering */
 	struct obs_scene_item *prev;
 	struct obs_scene_item *next;

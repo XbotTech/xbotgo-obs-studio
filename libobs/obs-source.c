@@ -4292,6 +4292,14 @@ const char *obs_source_get_unversioned_id(const obs_source_t *source)
 	return obs_source_valid(source, "obs_source_get_unversioned_id") ? source->info.unversioned_id : NULL;
 }
 
+void obs_source_set_render_fps_logging_enabled(obs_source_t *source, bool enabled)
+{
+	if (!obs_source_valid(source, "obs_source_set_render_fps_logging_enabled"))
+		return;
+
+	os_atomic_set_bool(&source->render_fps_logging_enabled, enabled);
+}
+
 static inline void render_filter_bypass(obs_source_t *target, gs_effect_t *effect, const char *tech_name)
 {
 	gs_technique_t *tech = gs_effect_get_technique(effect, tech_name);
