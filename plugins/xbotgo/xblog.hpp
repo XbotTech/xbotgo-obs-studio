@@ -60,8 +60,8 @@ inline void xblog(int log_level, const char *log_type, const char *file, int lin
 
 	if (message_length < 0) {
 		va_end(args);
-		(blog)(LOG_ERROR, "[%s] [%s:%d] [%s] error: failed to format log message",
-		       xblog_timestamp().c_str(), xblog_file_name(file), line, tag && *tag ? tag : "FalconM");
+		(blog)(LOG_ERROR, "%s %s %s:%d [error] failed to format log message", xblog_timestamp().c_str(),
+		       tag && *tag ? tag : "FalconM", xblog_file_name(file), line);
 		return;
 	}
 
@@ -69,8 +69,8 @@ inline void xblog(int log_level, const char *log_type, const char *file, int lin
 	std::vsnprintf(message.data(), message.size(), format, args);
 	va_end(args);
 
-	(blog)(log_level, "[%s] [%s:%d] [%s] %s: %s", xblog_timestamp().c_str(), xblog_file_name(file), line,
-	       tag && *tag ? tag : "FalconM", log_type, message.data());
+	(blog)(log_level, "%s %s %s:%d [%s] %s", xblog_timestamp().c_str(), tag && *tag ? tag : "FalconM",
+	       xblog_file_name(file), line, log_type, message.data());
 }
 
 } // namespace xbotgo
