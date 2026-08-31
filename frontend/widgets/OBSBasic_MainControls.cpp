@@ -23,7 +23,6 @@
 #include <dialogs/LogUploadDialog.hpp>
 #include <dialogs/OBSAbout.hpp>
 #include <dialogs/OBSBasicAdvAudio.hpp>
-#include <dialogs/OBSBasicFalconMDevices.hpp>
 #include <dialogs/OBSBasicFilters.hpp>
 #include <dialogs/OBSBasicInteraction.hpp>
 #include <dialogs/OBSBasicProperties.hpp>
@@ -45,9 +44,6 @@
 #include <utility/WhatsNewInfoThread.hpp>
 #endif
 #include <wizards/AutoConfig.hpp>
-#include <xbotgo/dialogs/XBotGoLiveStreamConfigDialog.hpp>
-#include <xbotgo/services/XBotGoLiveStreamProvider.hpp>
-
 #include <qt-wrappers.hpp>
 
 #include <nlohmann/json.hpp>
@@ -679,87 +675,6 @@ void OBSBasic::on_idianPlayground_triggered()
 	playground.show();
 	playground.exec();
 #endif
-}
-
-void OBSBasic::on_actionXBotGoDeviceManagement_triggered()
-{
-	falconMDevicesDock->show();
-	falconMDevicesDock->raise();
-	falconMDevices->setFocus(Qt::ShortcutFocusReason);
-}
-
-void OBSBasic::on_actionXBotGoStartStreaming_triggered()
-{
-	if (StreamingActive() || streamingStarting) {
-		return;
-	}
-
-	StartXBotGoStreaming();
-}
-
-void OBSBasic::StartXBotGoStreaming()
-{
-	ui->actionXBotGoStartStreaming->setEnabled(false);
-	ui->actionXBotGoStartStreaming->setText(QTStr("Basic.MainMenu.XBotGo.StartStreaming.Fetching"));
-
-	xbotgoLiveStreamProvider->requestLiveStreamConfig(
-		this, [this](std::optional<xbotgo::LiveStreamConfig> config, const QString &error) {
-			ui->actionXBotGoStartStreaming->setText(QTStr("Basic.MainMenu.XBotGo.StartStreaming"));
-
-			if (!config) {
-				ui->actionXBotGoStartStreaming->setEnabled(true);
-				QMessageBox::critical(
-					this, QTStr("Basic.MainMenu.XBotGo.LiveConfig.Error.Title"),
-					QTStr("Basic.MainMenu.XBotGo.LiveConfig.Error.Text").arg(error));
-				return;
-			}
-
-			xbotgo::LiveStreamConfigDialog dialog(*config, this);
-			if (dialog.exec() != QDialog::Accepted) {
-				ui->actionXBotGoStartStreaming->setEnabled(true);
-				return;
-			}
-
-			ApplyXBotGoLiveStreamConfig(dialog.liveStreamConfig());
-		});
-}
-
-void OBSBasic::ApplyXBotGoLiveStreamConfig(const xbotgo::LiveStreamConfig &config)
-{
-	OBSDataAutoRelease settings = obs_data_create();
-	obs_data_set_string(settings, "server", QT_TO_UTF8(config.pushServer));
-	obs_data_set_string(settings, "key", QT_TO_UTF8(config.pushStreamKey));
-
-	OBSServiceAutoRelease newService =
-		obs_service_create("rtmp_custom", "default_service", settings, nullptr);
-	if (!newService) {
-		ui->actionXBotGoStartStreaming->setEnabled(true);
-		QMessageBox::critical(this, QTStr("Basic.MainMenu.XBotGo.LiveConfig.Error.Title"),
-				      QTStr("Basic.MainMenu.XBotGo.LiveConfig.ServiceError"));
-		return;
-	}
-
-	auth.reset();
-	SetBroadcastFlowEnabled(false);
-	xbotgoPullUrl = config.pullUrl();
-	SetService(newService);
-	SaveService();
-
-	bool enteredPreparation = false;
-	const QMetaObject::Connection preparingConnection =
-		connect(this, &OBSBasic::StreamingPreparing, this,
-			[this, &enteredPreparation, taskId = config.taskId] {
-				enteredPreparation = true;
-				xbotgoLiveStreamProvider->startHeartbeat(this, taskId);
-			},
-			Qt::DirectConnection);
-
-	StreamActionTriggered();
-	disconnect(preparingConnection);
-
-	if (!enteredPreparation) {
-		ui->actionXBotGoStartStreaming->setEnabled(true);
-	}
 }
 
 void OBSBasic::on_actionShowAbout_triggered()

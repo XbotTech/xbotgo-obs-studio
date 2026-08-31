@@ -33,7 +33,6 @@
 #include <dialogs/NameDialog.hpp>
 #include <dialogs/OBSAbout.hpp>
 #include <dialogs/OBSBasicAdvAudio.hpp>
-#include <dialogs/OBSBasicFalconMDevices.hpp>
 #include <dialogs/OBSBasicFilters.hpp>
 #include <dialogs/OBSBasicInteraction.hpp>
 #include <dialogs/OBSBasicProperties.hpp>
@@ -47,9 +46,6 @@
 #endif
 #include <widgets/AudioMixer.hpp>
 #include <widgets/OBSProjector.hpp>
-#include <xbotgo/director/XBotGoAutoDirector.hpp>
-#include <xbotgo/services/XBotGoLiveStreamProvider.hpp>
-
 #include <OBSStudioAPI.hpp>
 #ifdef BROWSER_AVAILABLE
 #include <browser-panel.hpp>
@@ -257,10 +253,7 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 	api = InitializeAPIInterface(this);
 
 	ui->setupUi(this);
-	xbotgoAutoDirector = std::make_unique<xbotgo::AutoDirector>(*this);
-	xbotgoAutoDirector->start();
 	ui->previewDisabledWidget->setVisible(false);
-	xbotgoLiveStreamProvider = std::make_unique<xbotgo::HttpLiveStreamProvider>();
 
 	/* Set up streaming connections */
 	connect(
@@ -272,19 +265,6 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 	connect(
 		this, &OBSBasic::StreamingStopped, this, [this] { this->streamingStarting = false; },
 		Qt::DirectConnection);
-	connect(
-		this, &OBSBasic::StreamingStopping, this, [this] { xbotgoLiveStreamProvider->stopHeartbeat(); },
-		Qt::DirectConnection);
-	connect(
-		this, &OBSBasic::StreamingStopped, this, [this] { xbotgoLiveStreamProvider->stopLiveTask(this); },
-		Qt::DirectConnection);
-	connect(
-		this, &OBSBasic::StreamingPreparing, ui->actionXBotGoStartStreaming,
-		[this] { ui->actionXBotGoStartStreaming->setEnabled(false); }, Qt::DirectConnection);
-	connect(
-		this, &OBSBasic::StreamingStopped, ui->actionXBotGoStartStreaming,
-		[this] { ui->actionXBotGoStartStreaming->setEnabled(true); }, Qt::DirectConnection);
-
 	/* Set up recording connections */
 	connect(
 		this, &OBSBasic::RecordingStarted, this,
@@ -380,13 +360,6 @@ OBSBasic::OBSBasic(QWidget *parent) : OBSMainWindow(parent), undo_s(ui), ui(new 
 	int sideDockWidth = std::min(width() * 30 / 100, 320);
 	resizeDocks({ui->scenesDock, ui->sourcesDock}, {sideDockWidth, sideDockWidth}, Qt::Horizontal);
 	addDockWidget(Qt::BottomDockWidgetArea, controlsDock);
-	falconMDevicesDock = new OBSDock(this);
-	falconMDevicesDock->setObjectName(QStringLiteral("xbotgoDeviceManagementDock"));
-	falconMDevicesDock->setWindowTitle(QTStr("Basic.MainMenu.XBotGo.DeviceManagement"));
-	OBSBasicFalconMDevices::ConfigureDock(*falconMDevicesDock);
-	falconMDevices = new OBSBasicFalconMDevices(*xbotgoAutoDirector, falconMDevicesDock);
-	falconMDevicesDock->setWidget(falconMDevices);
-	addDockWidget(Qt::RightDockWidgetArea, falconMDevicesDock);
 
 	startingDockLayout = saveState();
 
@@ -1280,10 +1253,6 @@ void OBSBasic::OBSInit()
 		}
 	}
 
-	addDockWidget(Qt::RightDockWidgetArea, falconMDevicesDock);
-	falconMDevicesDock->setFloating(false);
-	falconMDevicesDock->show();
-
 	bool pre23Defaults = config_get_bool(App()->GetUserConfig(), "General", "Pre23Defaults");
 	if (pre23Defaults) {
 		bool resetDockLock23 = config_get_bool(App()->GetUserConfig(), "General", "ResetDockLock23");
@@ -1448,11 +1417,6 @@ OBSBasic::~OBSBasic() {}
 
 void OBSBasic::applicationShutdown() noexcept
 {
-	if (xbotgoAutoDirector) {
-		xbotgoAutoDirector->stop();
-		xbotgoAutoDirector.reset();
-	}
-
 	/* clear out UI event queue */
 	QApplication::sendPostedEvents(nullptr);
 #ifndef __APPLE__

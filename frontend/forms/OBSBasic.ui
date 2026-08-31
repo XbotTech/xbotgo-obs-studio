@@ -951,13 +951,6 @@
     <addaction name="actionOpenPluginManager"/>
     <addaction name="separator"/>
    </widget>
-   <widget class="QMenu" name="menuXBotGo">
-    <property name="title">
-     <string>Basic.MainMenu.XBotGo</string>
-    </property>
-    <addaction name="actionXBotGoDeviceManagement"/>
-    <addaction name="actionXBotGoStartStreaming"/>
-   </widget>
    <widget class="QMenu" name="menuDocks">
     <property name="title">
      <string>Basic.MainMenu.Docks</string>
@@ -974,7 +967,6 @@
    <addaction name="profileMenu"/>
    <addaction name="sceneCollectionMenu"/>
    <addaction name="menuTools"/>
-   <addaction name="menuXBotGo"/>
    <addaction name="menuBasic_MainMenu_Help"/>
   </widget>
   <widget class="OBSBasicStatusBar" name="statusbar"/>
@@ -2053,16 +2045,6 @@
   <action name="actionOpenPluginManager">
    <property name="text">
     <string>Basic.OpenPluginManager</string>
-   </property>
-  </action>
-  <action name="actionXBotGoDeviceManagement">
-   <property name="text">
-    <string>Basic.MainMenu.XBotGo.DeviceManagement</string>
-   </property>
-  </action>
-  <action name="actionXBotGoStartStreaming">
-   <property name="text">
-    <string>Basic.MainMenu.XBotGo.StartStreaming</string>
    </property>
   </action>
   <action name="stats">
