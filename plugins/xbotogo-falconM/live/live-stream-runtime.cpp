@@ -4,6 +4,9 @@
 #include "../runtime/xbotgo-translation.hpp"
 
 #include <QAction>
+#include <QDateTime>
+#include <QInputDialog>
+#include <QLineEdit>
 #include <QMessageBox>
 #include <QTimer>
 
@@ -16,6 +19,26 @@ namespace xbotgo {
 namespace {
 
 constexpr int HeartbeatIntervalMs = 10'000;
+
+std::optional<QString> PromptLiveTitle(QWidget *parent)
+{
+	QString title = QDateTime::currentDateTime().toString(QStringLiteral("yyyyMMdd-HHmmss"));
+	for (;;) {
+		bool accepted = false;
+		title = QInputDialog::getText(parent, Tr("Basic.MainMenu.XBotGo.LiveTitle.Title"),
+					      Tr("Basic.MainMenu.XBotGo.LiveTitle.Label"), QLineEdit::Normal, title,
+					      &accepted)
+				.trimmed();
+		if (!accepted) {
+			return std::nullopt;
+		}
+		if (!title.isEmpty()) {
+			return title;
+		}
+		QMessageBox::warning(parent, Tr("Basic.MainMenu.XBotGo.LiveTitle.Title"),
+				     Tr("Basic.MainMenu.XBotGo.LiveTitle.Empty"));
+	}
+}
 
 } // namespace
 
@@ -33,11 +56,16 @@ LiveStreamRuntime::LiveStreamRuntime(QAction &startAction, QWidget &dialogParent
 
 void LiveStreamRuntime::start()
 {
-	if (shutdown_ || obs_frontend_streaming_active() || !session_.beginFetch()) {
+	if (shutdown_ || obs_frontend_streaming_active() || session_.phase() != LiveStreamPhase::Idle) {
+		return;
+	}
+
+	const std::optional<QString> liveTitle = PromptLiveTitle(dialogParent_);
+	if (!liveTitle || shutdown_ || obs_frontend_streaming_active() || !session_.beginFetch()) {
 		return;
 	}
 	setActionForPhase();
-	client_.requestStart(this, [this](std::optional<LiveStreamConfig> config, QString error) {
+	client_.requestStart(this, *liveTitle, [this](std::optional<LiveStreamConfig> config, QString error) {
 		if (shutdown_ || session_.phase() != LiveStreamPhase::Fetching) {
 			return;
 		}
