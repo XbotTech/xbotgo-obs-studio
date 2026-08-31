@@ -1,13 +1,13 @@
 #pragma once
 
-#include "XBotGoDevice.hpp"
+#include "device-info.hpp"
 
 #include <QDialog>
 #include <QHash>
 #include <QNetworkInterface>
-#include <QTimer>
 #include <QUdpSocket>
 
+#include <memory>
 #include <optional>
 
 class QHideEvent;
@@ -22,20 +22,14 @@ class DeviceSearchDialog : public QDialog {
 	Q_OBJECT
 
 public:
-	enum class Mode {
-		Browse,
-		Select,
-	};
-
-	explicit DeviceSearchDialog(QWidget *parent, Mode mode = Mode::Browse);
+	explicit DeviceSearchDialog(QWidget *parent);
 	~DeviceSearchDialog() override;
 
-	std::optional<Device> selectedDevice() const;
+	std::optional<DeviceInfo> selectedDevice() const;
 
 private slots:
 	void readPendingDatagrams();
 	void refreshSearch();
-	void sendDatagram();
 	void updateSelection();
 
 protected:
@@ -43,21 +37,21 @@ protected:
 	void hideEvent(QHideEvent *event) override;
 
 private:
-	void startSearch();
-	void stopSearch();
-	void updateDevice(const Device &device);
+	void initSocket();
+	void uninitSocket();
+	bool shouldJoinInterface(const QNetworkInterface &interface);
+
+	void updateDevice(const DeviceInfo &device);
 	void clearDevices();
 
-	Mode mode;
 	QTableView *deviceTable = nullptr;
 	QStandardItemModel *deviceModel = nullptr;
 	QPushButton *selectButton = nullptr;
-	QUdpSocket *socket4 = nullptr;
-	QTimer timer;
-	QHostAddress groupAddress4;
+	QUdpSocket socket4;
+	QHostAddress group_address4;
 	QHash<QString, int> deviceRows;
-	QHash<QString, Device> devices;
-	QList<QNetworkInterface> multicastInterfaces;
+	QHash<QString, std::shared_ptr<const DeviceInfo>> devices;
+	QList<QNetworkInterface> join_multicast_interfaces;
 };
 
 } // namespace xbotgo
