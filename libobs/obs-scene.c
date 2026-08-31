@@ -918,7 +918,7 @@ static inline void log_render_fps(struct obs_scene_item *item)
 	item->render_start_time_ms = now_ms;
 
 	blog(LOG_INFO,
-	     "Render FPS: thread_id=%llu source_id='%s' source_name='%s' scene_name='%s' frame_count=%llu fps=%.2f",
+	     "Render FPS: thread_id=%llu source_id='%s' source_name='%s' scene_name='%s' frame_count=%llu render fps=%.2f",
 	     (unsigned long long)thread_id, obs_source_get_id(item->source), obs_source_get_name(item->source),
 	     obs_source_get_name(item->parent->source), (unsigned long long)frame_count, fps);
 }

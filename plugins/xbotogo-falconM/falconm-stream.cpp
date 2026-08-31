@@ -454,7 +454,7 @@ private:
 				FALCONM_LOG_INFO(
 					"FalconM: this=%p uniqueID=%d onDecodedVideoFrame ssrc=%u data=%p format=%d "
 					"streaming=%s buffer=%p bufferObj=%p width=%d height=%d pts=%lld dts=%lld "
-					"fromNodeId=%d toNodeId=%d rotation=%d frameCount=%llu fps=%.2f",
+					"fromNodeId=%d toNodeId=%d rotation=%d frameCount=%llu decode fps=%.2f",
 					(void *)this, instance_id_, ssrc, (void *)d.get(), d->format,
 					streaming_ ? "true" : "false", (void *)d->buffer.get(), (void *)d->bufferObj.get(),
 					d->width, d->height, (long long)d->pts, (long long)d->dts, d->fromNodeId,
