@@ -34,6 +34,7 @@
 !README.rst
 !AGENTS.md
 !README.md
+!package-macos.zsh
 # Exclude lock files
 *.lock.json
 

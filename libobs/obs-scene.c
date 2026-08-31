@@ -24,6 +24,8 @@
 
 const struct obs_source_info group_info;
 
+#define RENDER_FPS_FRAME_WINDOW 150ULL
+
 static void resize_group(obs_sceneitem_t *group, bool scene_resize);
 static void resize_scene(obs_scene_t *scene);
 static void signal_parent(obs_scene_t *parent, const char *name, calldata_t *params);
@@ -894,9 +896,37 @@ static bool are_texcoords_centered(struct matrix4 *m)
 	return memcmp(m, &copy, sizeof(*m)) == 0;
 }
 
+static inline void log_render_fps(struct obs_scene_item *item)
+{
+	if (!os_atomic_load_bool(&item->source->render_fps_logging_enabled))
+		return;
+
+	const uint64_t now_ms = os_gettime_ns() / 1000000ULL;
+	if (!item->render_start_time_ms)
+		item->render_start_time_ms = now_ms;
+
+	const uint64_t frame_count = ++item->render_frame_count;
+	if (frame_count % RENDER_FPS_FRAME_WINDOW != 0)
+		return;
+
+	const uint64_t elapsed_ms = now_ms - item->render_start_time_ms;
+	const double fps = elapsed_ms > 0 ? (double)RENDER_FPS_FRAME_WINDOW * 1000.0 / (double)elapsed_ms : 0.0;
+	uint64_t thread_id = 0;
+#ifdef __APPLE__
+	(void)pthread_threadid_np(NULL, &thread_id);
+#endif
+	item->render_start_time_ms = now_ms;
+
+	blog(LOG_INFO,
+	     "Render FPS: thread_id=%llu source_id='%s' source_name='%s' scene_name='%s' frame_count=%llu fps=%.2f",
+	     (unsigned long long)thread_id, obs_source_get_id(item->source), obs_source_get_name(item->source),
+	     obs_source_get_name(item->parent->source), (unsigned long long)frame_count, fps);
+}
+
 static inline void render_item(struct obs_scene_item *item)
 {
 	GS_DEBUG_MARKER_BEGIN_FORMAT(GS_DEBUG_COLOR_ITEM, "Item: %s", obs_source_get_name(item->source));
+	bool rendered = false;
 
 	const bool use_texrender = item_texture_enabled(item);
 
@@ -953,6 +983,7 @@ static inline void render_item(struct obs_scene_item *item)
 				obs_source_video_render(item->source);
 				obs_source_set_texcoords_centered(item->source, false);
 			}
+			rendered = true;
 
 			gs_texrender_end(item->item_render);
 		}
@@ -980,10 +1011,13 @@ static inline void render_item(struct obs_scene_item *item)
 		obs_source_video_render(item->source);
 		obs_source_set_texcoords_centered(item->source, false);
 	}
+	rendered = true;
 	gs_matrix_pop();
 	gs_set_linear_srgb(previous);
 
 cleanup:
+	if (rendered)
+		log_render_fps(item);
 	GS_DEBUG_MARKER_END();
 }
 

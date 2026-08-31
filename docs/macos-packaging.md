@@ -30,6 +30,32 @@ git submodule update --init --recursive
 
 以下命令均在仓库根目录执行。
 
+## 一键打包脚本
+
+仓库根目录的 `package-macos.zsh` 会依次初始化子模块、构建 arm64 应用、生成 DMG，并验证 DMG、App 签名、
+主程序架构、FalconM 插件和 Media SDK。脚本会在 DMG 文件名中加入打包日期，例如
+`obs-studio-32.2.1-967e8f844-20260828-macos-apple.dmg`；同一天重复生成时会追加 `-2`、`-3` 等序号。
+默认生成 Release 内部测试包：
+
+```bash
+./package-macos.zsh
+```
+
+生成 Developer ID 签名包时，先配置下文列出的签名环境变量，再执行：
+
+```bash
+./package-macos.zsh --codesign
+```
+
+签名并提交 Apple 公证时执行；`--notarize` 会自动启用 `--codesign`：
+
+```bash
+./package-macos.zsh --notarize
+```
+
+已有 `build_macos/OBS.app`、只需重新生成 DMG 时，可以增加 `--skip-build`。完整参数说明使用
+`./package-macos.zsh --help` 查看。以下章节保留对应的分步命令，便于排查构建、签名或公证问题。
+
 ## 生成内部测试 DMG
 
 内部测试包使用 ad-hoc 签名，不需要 Apple Developer 证书。

@@ -174,6 +174,10 @@ X-Protocol-Version: <0-65535>
 OBS 日志可从菜单 **帮助 → 日志文件 → 查看当前日志** 打开。XBotGo 直播请求、心跳、停止请求及部分设备发现过程会写入该日志。
 FalconM 的 info 日志由编译宏 `XBOTGO_FALCONM_INFO_LOG_ENABLED` 控制，默认值为 `1`；设为 `0` 可关闭 info
 日志，不影响 warning 和 error 日志。info 日志消息包含精确到毫秒的本地时间。
+FalconM Source 创建时会开启渲染帧率日志，销毁时关闭。每个 FalconM 场景项独立统计，每实际渲染 150 帧
+记录一次累计渲染帧数、Source ID、Source 名称、直接所属的 Scene（或 Group）名称和渲染线程 ID；帧率按
+最近 150 帧除以本次日志与上次计时起点之间的时间计算。该统计由 libobs 的场景渲染路径记录，不受插件的
+`XBOTGO_FALCONM_INFO_LOG_ENABLED` 开关影响。
 
 FalconM 协议层支持编码 `ATR` RTC 时钟指令，包括秒级 Unix 时间戳、UTC 偏移秒数和 IANA 时区 ID。
 FalconM 设备控制连接成功时会发送一次当前系统时间和时区；设备重连成功后会重新同步。

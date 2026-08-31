@@ -1179,6 +1179,9 @@ EXPORT enum obs_source_type obs_source_get_type(const obs_source_t *source);
 EXPORT const char *obs_source_get_id(const obs_source_t *source);
 EXPORT const char *obs_source_get_unversioned_id(const obs_source_t *source);
 
+/** Enables or disables per-scene-item render FPS logging for the source. */
+EXPORT void obs_source_set_render_fps_logging_enabled(obs_source_t *source, bool enabled);
+
 /** Returns the signal handler for a source */
 EXPORT signal_handler_t *obs_source_get_signal_handler(const obs_source_t *source);
 
