@@ -59,7 +59,10 @@ add_obs_plugin(
     WITH_MESSAGE
 )
 add_obs_plugin(image-source)
-add_obs_plugin(xbotogo-falconM PLATFORMS MACOS)
+option(ENABLE_XBOTOGO_FALCONM "Enable the XBotGo FalconM plugin (macOS arm64 only)" ON)
+if(ENABLE_XBOTOGO_FALCONM)
+  add_obs_plugin(xbotogo-falconM PLATFORMS MACOS ARCHITECTURES arm64)
+endif()
 add_obs_plugin(linux-alsa PLATFORMS LINUX FREEBSD OPENBSD)
 add_obs_plugin(linux-capture PLATFORMS LINUX FREEBSD OPENBSD)
 add_obs_plugin(linux-jack PLATFORMS LINUX FREEBSD OPENBSD)

@@ -17,8 +17,8 @@
 | 目录 | 作用 |
 | --- | --- |
 | `libobs/` | OBS 核心库：场景、Source、Output、Encoder、Service 等基础抽象 |
-| `frontend/` | Qt 桌面端；XBotGo 界面与直播逻辑位于 `frontend/xbotgo/` |
-| `plugins/` | OBS 官方插件及业务插件；FalconM 插件及设备发现实现位于 `plugins/xbotogo-falconM/` |
+| `frontend/` | 上游 OBS Qt 桌面端 |
+| `plugins/` | OBS 官方插件及业务插件；XBotGo/FalconM 全部实现位于 `plugins/xbotogo-falconM/` |
 | `libobs-opengl/`、`libobs-metal/` | OpenGL 和 Metal 图形后端 |
 | `deps/`、`shared/` | 第三方组件及 OBS 公共组件 |
 | `cmake/`、`build-aux/` | CMake 模块、依赖准备、构建和打包辅助脚本 |
@@ -28,8 +28,8 @@
 XBotGo 相关模块的主要调用关系如下：
 
 ```text
-OBS Qt 前端
-├── XBotGo 菜单
+XBotGo FalconM 插件
+├── XBotGo 菜单与设备管理 Dock
 │   └── 开始直播
 ├── 直播任务服务
 │   ├── 获取推/拉流地址
@@ -46,16 +46,15 @@ OBS Qt 前端
 
 | 功能 | 入口文件 |
 | --- | --- |
-| XBotGo 菜单与操作 | `frontend/widgets/OBSBasic_MainControls.cpp` |
-| 菜单 UI 定义 | `frontend/forms/OBSBasic.ui` |
-| 直播配置对话框 | `frontend/xbotgo/dialogs/XBotGoLiveStreamConfigDialog.cpp` |
-| 直播任务请求、心跳与停止 | `frontend/xbotgo/services/XBotGoLiveStreamProvider.cpp` |
+| XBotGo 菜单、Dock 与运行时 | `plugins/xbotogo-falconM/runtime/xbotgo-plugin-runtime.cpp` |
+| 直播配置对话框 | `plugins/xbotogo-falconM/live/live-stream-config-dialog.cpp` |
+| 直播任务请求、心跳与停止 | `plugins/xbotogo-falconM/live/live-task-client.cpp`、`plugins/xbotogo-falconM/live/live-stream-runtime.cpp` |
 | 设备搜索对话框 | `plugins/xbotogo-falconM/device-search/XBotGoDeviceSearchDialog.cpp` |
 | SSDP 响应解析 | `plugins/xbotogo-falconM/device-search/XBotGoSsdpParser.cpp` |
 | FalconM Source 注册 | `plugins/xbotogo-falconM/xbotogo-falconM.cpp` |
 | FalconM Source 生命周期 | `plugins/xbotogo-falconM/falconm-source.cpp` |
 | Media SDK 数据接入 | `plugins/xbotogo-falconM/falconm-stream.cpp` |
-| 中英文文案 | `frontend/data/locale/en-US.ini`、`frontend/data/locale/zh-CN.ini` |
+| 中英文文案 | `plugins/xbotogo-falconM/data/locale/en-US.ini`、`plugins/xbotogo-falconM/data/locale/zh-CN.ini` |
 
 ## 构建环境
 
@@ -86,6 +85,8 @@ OBS 的依赖准备方式会随上游版本变化，统一以 [官方 macOS 构�
 cmake --preset macos
 cmake --build build_macos --config Debug --parallel 8
 ```
+
+无需 XBotGo/FalconM 时可在配置阶段传入 `-DENABLE_XBOTOGO_FALCONM=OFF`；这是受支持的插件禁用边界。
 
 也可以生成独立的 Xcode 构建目录：
 
@@ -160,7 +161,7 @@ X-Protocol-Version: <0-65535>
 4. 确认后由 OBS 创建自定义推流服务并开始推流。
 5. 推流期间客户端每 10 秒发送一次任务心跳，停止推流时通知服务端结束任务。
 
-直播服务地址及请求字段目前直接定义在 `XBotGoLiveStreamProvider.cpp` 中。切换测试/生产环境或接入认证信息时，应优先将这些配置外置，避免把密钥或令牌提交到仓库。
+直播服务地址及请求字段目前直接定义在 `plugins/xbotogo-falconM/live/live-task-client.cpp` 中。切换测试/生产环境或接入认证信息时，应优先将这些配置外置，避免把密钥或令牌提交到仓库。
 
 ## 调试与排查
 
@@ -179,7 +180,7 @@ FalconM 设备控制连接成功时会发送一次当前系统时间和时区；
 
 ## 开发约定
 
-- 避免直接修改与需求无关的上游 OBS 代码，业务代码优先放入 `frontend/xbotgo/` 或独立插件目录。
+- 避免直接修改与需求无关的上游 OBS 代码，XBotGo 业务代码统一放入 `plugins/xbotogo-falconM/`。
 - 新增界面文案时同时维护 `en-US.ini` 和 `zh-CN.ini`。
 - 修改 FalconM 设备发现实现后，构建插件并验证 Source 属性页的设备搜索流程。
 - 不要提交构建目录、用户配置、日志、签名文件、访问令牌或其他敏感信息。

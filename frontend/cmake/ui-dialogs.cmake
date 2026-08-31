@@ -23,12 +23,6 @@ target_sources(
     dialogs/OBSAbout.hpp
     dialogs/OBSBasicAdvAudio.cpp
     dialogs/OBSBasicAdvAudio.hpp
-    dialogs/OBSBasicAutoDirectorControl.cpp
-    dialogs/OBSBasicAutoDirectorControl.hpp
-    dialogs/OBSBasicFalconMDevices.cpp
-    dialogs/OBSBasicFalconMDevices.hpp
-    dialogs/OBSBasicFalconMControl.cpp
-    dialogs/OBSBasicFalconMControl.hpp
     dialogs/OBSBasicFilters.cpp
     dialogs/OBSBasicFilters.hpp
     dialogs/OBSBasicInteraction.cpp

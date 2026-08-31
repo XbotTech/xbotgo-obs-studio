@@ -1,14 +1,10 @@
 #include "falconm.hpp"
 #include "falconm-log.hpp"
 
-#ifdef XBOTGO_DEVICE_DISCOVERY
 #include "device-search/XBotGoDeviceSearchDialog.hpp"
 #include <QApplication>
-#endif
 
-#ifdef XBOTGO_FRONTEND_API
 #include <obs-frontend-api.h>
-#endif
 
 #include <util/base.h>
 
@@ -177,9 +173,7 @@ static void fit_falconm_source_to_canvas(void *param)
 			static_cast<unsigned long long>(dropped_frames),
 			static_cast<unsigned long long>(total_dropped_frames));
 		if (context.fitted_items) {
-#ifdef XBOTGO_FRONTEND_API
 			obs_frontend_save();
-#endif
 		}
 	} else if (data && !obs_source_removed(source)) {
 		restore_scene_fit_request(data, *task);
@@ -622,11 +616,7 @@ static void falconm_video_tick(void *p, float)
 
 	/* video_tick runs after scene collection JSON has applied transforms. In
 	 * OBS Studio, queue the mutation onto its UI thread as well. */
-#ifdef XBOTGO_FRONTEND_API
 	obs_queue_task(OBS_TASK_UI, fit_falconm_source_to_canvas, task, false);
-#else
-	fit_falconm_source_to_canvas(task);
-#endif
 }
 
 static void falconm_send_direction(void *data, calldata_t *cd)
@@ -1116,7 +1106,6 @@ falconm_supported_modes falconm_get_supported_modes(const falconm_source *source
 	return source && source->stream ? source->stream->state().supported_modes : falconm_supported_modes{};
 }
 
-#ifdef XBOTGO_DEVICE_DISCOVERY
 static bool falconm_search_device(obs_properties_t *, obs_property_t *, void *data)
 {
 	auto *d = static_cast<falconm_source *>(data);
@@ -1147,17 +1136,12 @@ static bool falconm_search_device(obs_properties_t *, obs_property_t *, void *da
 	obs_data_release(settings);
 	return true;
 }
-#endif
 
 static obs_properties_t *falconm_properties(void *data)
 {
 	log_source_callback_thread("get_properties");
 	auto *p = obs_properties_create();
-#ifdef XBOTGO_DEVICE_DISCOVERY
-	obs_properties_add_button2(p, "search_device", obs_module_text("SearchDevices"), falconm_search_device, data);
-#else
-	UNUSED_PARAMETER(data);
-#endif
+obs_properties_add_button2(p, "search_device", obs_module_text("SearchDevices"), falconm_search_device, data);
 	obs_properties_add_text(p, "broker_address", obs_module_text("BrokerAddress"), OBS_TEXT_DEFAULT);
 	obs_properties_add_text(p, "device_id", obs_module_text("DeviceId"), OBS_TEXT_DEFAULT);
 	obs_properties_add_int(p, "broker_port", obs_module_text("MqttPort"), 1, std::numeric_limits<uint16_t>::max(),

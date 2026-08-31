@@ -1,5 +1,7 @@
 # FalconM Source 重启恢复流程
 
+FalconM Source、设备发现、控制 UI 和前端运行时均由 `plugins/xbotogo-falconM/` 单独拥有；上游 OBS 前端不包含 XBotGo 业务实现。
+
 本文记录 OBS 项目重启后，`falconm_source` 如何被重新创建，以及 FalconM 连接参数从哪里恢复。
 
 ## 结论
