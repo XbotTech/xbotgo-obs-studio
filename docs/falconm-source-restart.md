@@ -1,6 +1,6 @@
 # FalconM Source 重启恢复流程
 
-FalconM Source、设备发现、控制 UI 和前端运行时均由 `plugins/xbotogo-falconM/` 单独拥有；上游 OBS 前端不包含 XBotGo 业务实现。
+FalconM Source、设备发现、控制 UI 和前端运行时均由 `plugins/xbotgo/` 单独拥有；上游 OBS 前端不包含 XBotGo 业务实现。
 
 本文记录 OBS 项目重启后，`falconm_source` 如何被重新创建，以及 FalconM 连接参数从哪里恢复。
 
@@ -21,7 +21,7 @@ OBS 启动时，`OBSApp::loadAppModules()` 调用 `obs_load_all_modules2()`，�
 
 - `frontend/OBSApp.cpp:2040`
 
-插件入口位于 `plugins/xbotogo-falconM/xbotogo-falconM.cpp`：
+插件入口位于 `plugins/xbotgo/xbotogo-falconM.cpp`：
 
 ```cpp
 bool obs_module_load(void)
@@ -31,7 +31,7 @@ bool obs_module_load(void)
 }
 ```
 
-source 信息定义在 `plugins/xbotogo-falconM/falconm-source.cpp`，其中 ID 为：
+source 信息定义在 `plugins/xbotgo/falconm-source.cpp`，其中 ID 为：
 
 ```cpp
 obs_source_info falconm_source_info = {
@@ -116,7 +116,7 @@ static void *falconm_create(obs_data_t *s, obs_source_t *source)
 }
 ```
 
-- `plugins/xbotogo-falconM/falconm-source.cpp:57`
+- `plugins/xbotgo/falconm-source.cpp:57`
 
 因此，`falconm_source` 是每次启动时新分配的对象，连接参数来自 JSON 的 `settings`，而不是来自上一次运行时的 C++ 对象。
 

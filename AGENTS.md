@@ -6,7 +6,7 @@
 
 这是基于 OBS Studio 的 XBotGo 定制工程。除上游 OBS 的采集、合成、编码、录制和推流能力外，当前业务重点包括：
 
-- `plugins/xbotogo-falconM/`：XBotGo 唯一业务实现，包含 FalconM Source、SSDP/UDP 设备发现、菜单与 Dock、直播任务、角色场景和自动导播，仅面向 macOS arm64。
+- `plugins/xbotgo/`：XBotGo 唯一业务实现，包含 FalconM Source、SSDP/UDP 设备发现、菜单与 Dock、直播任务、角色场景和自动导播，仅面向 macOS arm64。
 
 开始修改前先阅读根目录 `README.md`。涉及通用 OBS 行为时，同时参考 `README.rst`、`CONTRIBUTING.md` 和 `CODESTYLE.md`。
 
@@ -14,8 +14,8 @@
 
 1. 先运行 `git status --short`，识别并保留用户已有修改。不要回滚、覆盖或格式化与当前任务无关的文件。
 2. 使用 `rg`/`rg --files` 定位代码。先理解现有调用链和生命周期，再做局部修改。
-3. XBotGo 业务改动应限制在 `plugins/xbotogo-falconM/`；只有公共 OBS API 确实不足时才修改上游目录。
-4. 不编辑 `build_*`、CMake 生成文件、打包产物或 IDE 用户配置。不要手工修改 `plugins/xbotogo-falconM/vendor/media-sdk/` 下的头文件和动态库。
+3. XBotGo 业务改动应限制在 `plugins/xbotgo/`；只有公共 OBS API 确实不足时才修改上游目录。
+4. 不编辑 `build_*`、CMake 生成文件、打包产物或 IDE 用户配置。不要手工修改 `plugins/xbotgo/vendor/media-sdk/` 下的头文件和动态库。
 5. 未经明确要求，不修改第三方依赖、子模块版本、服务端地址、协议字段或默认业务参数。
 6. 不提交访问令牌、账号、推流密钥、签名材料或设备隐私数据；日志中也不得输出这些信息。
 
@@ -30,7 +30,7 @@
 
 ### FalconM 插件
 
-- 保留现有目标名和目录拼写 `xbotogo-falconM`，不要擅自改名。
+- 业务源码目录保持为 `plugins/xbotgo/`；保留目标名、插件包名 `xbotogo-falconM` 和 Source ID `xbotogo_falconm`。
 - Media SDK 当前只有 `arm64` 产物。不要宣称或配置 x86_64/Universal 支持，除非相应 SDK 已提供。
 - SDK 连接和断开应在控制线程完成；音视频数据交给 OBS 前必须确认 Source 仍有效。
 - 修改 `falconm.hpp`、`falconm-source.cpp` 或 `falconm-stream.cpp` 时应把三者视为同一生命周期单元审查。
@@ -91,7 +91,7 @@ cmake --build build_macos_xcode --config Debug --target obs-studio --parallel 8
 
 | 改动范围 | 至少验证 |
 | --- | --- |
-| `plugins/xbotogo-falconM/` | `xbotogo-falconM`；涉及前端集成时再构建 `obs-studio` |
+| `plugins/xbotgo/` | `xbotogo-falconM`；涉及前端集成时再构建 `obs-studio` |
 | `libobs/` 或公共 Source/Scene API | `obs-studio`、受影响插件及相关测试 |
 | CMake 或依赖关系 | 重新配置后构建所有受影响目标 |
 | 仅 Markdown | `git diff --check` 并检查本地链接 |

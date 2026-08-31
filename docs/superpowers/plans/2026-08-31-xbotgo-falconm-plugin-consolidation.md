@@ -12,18 +12,18 @@
 
 ## 全局约束
 
-- 保留目标名和目录拼写 `xbotogo-falconM`。
+- 业务源码目录使用 `plugins/xbotgo/`，保留目标名和插件包名 `xbotogo-falconM`。
 - 仅支持 Apple Silicon arm64 上的 macOS 13+；不得增加 x86_64 或 Universal 支持。
 - 保持 Media SDK 头文件/库、Frameworks 复制逻辑和 `@loader_path` RPATH 不变。
 - 保持 Source ID、SSDP 协议、Media SDK 行为、服务地址、请求字段和默认参数不变。
 - 插件实现可以包含 libobs、`obs-frontend-api` 和 Qt，但不得包含 `OBSBasic.hpp`、`OBSApp.hpp`、`qt-wrappers.hpp`、`RemoteTextThread.hpp` 等前端私有头文件。
-- 保留用户未提交的 `plugins/xbotogo-falconM/falconm-stream.cpp` 修改。实施期间不执行 `git add` 或 `git commit`；只有用户明确要求时才暂存或提交。
+- 保留用户未提交的 `plugins/xbotgo/falconm-stream.cpp` 修改。实施期间不执行 `git add` 或 `git commit`；只有用户明确要求时才暂存或提交。
 - 网络工作保持异步，Widget 工作在 UI 线程执行，排队访问 Source 时使用 OBS 引用保护生命周期。
 
 ## 锁定的文件结构
 
 ```text
-plugins/xbotogo-falconM/
+plugins/xbotgo/
 ├── runtime/xbotgo-plugin-runtime.{cpp,hpp}
 ├── runtime/xbotgo-translation.hpp
 ├── ui/auto-director-control-widget.{cpp,hpp}
@@ -51,11 +51,11 @@ plugins/xbotogo-falconM/
 ### 任务 1：提取并测试直播领域逻辑
 
 **文件：**
-- 新建：`plugins/xbotogo-falconM/live/live-stream-config.hpp`
-- 新建：`plugins/xbotogo-falconM/live/live-stream-parser.{cpp,hpp}`
-- 新建：`plugins/xbotogo-falconM/live/live-stream-session.{cpp,hpp}`
-- 新建：`plugins/xbotogo-falconM/live/live-stream-test.cpp`
-- 修改：`plugins/xbotogo-falconM/CMakeLists.txt`
+- 新建：`plugins/xbotgo/live/live-stream-config.hpp`
+- 新建：`plugins/xbotgo/live/live-stream-parser.{cpp,hpp}`
+- 新建：`plugins/xbotgo/live/live-stream-session.{cpp,hpp}`
+- 新建：`plugins/xbotgo/live/live-stream-test.cpp`
+- 修改：`plugins/xbotgo/CMakeLists.txt`
 - 参考：`frontend/xbotgo/models/XBotGoLiveStreamConfig.hpp`
 - 参考：`frontend/xbotgo/services/XBotGoLiveStreamProvider.cpp`
 
@@ -136,10 +136,10 @@ ctest --test-dir build_macos -C Debug -R '^xbotgo-live-stream-test$' --output-on
 ### 任务 2：替换前端网络和翻译依赖
 
 **文件：**
-- 新建：`plugins/xbotogo-falconM/runtime/xbotgo-translation.hpp`
-- 新建：`plugins/xbotogo-falconM/live/live-task-client.{cpp,hpp}`
-- 新建：`plugins/xbotogo-falconM/live/live-stream-config-dialog.{cpp,hpp}`
-- 修改：`plugins/xbotogo-falconM/CMakeLists.txt`
+- 新建：`plugins/xbotgo/runtime/xbotgo-translation.hpp`
+- 新建：`plugins/xbotgo/live/live-task-client.{cpp,hpp}`
+- 新建：`plugins/xbotgo/live/live-stream-config-dialog.{cpp,hpp}`
+- 修改：`plugins/xbotgo/CMakeLists.txt`
 - 参考：`frontend/xbotgo/services/XBotGoLiveStreamProvider.*`
 - 参考：`frontend/xbotgo/dialogs/XBotGoLiveStreamConfigDialog.*`
 
@@ -184,7 +184,7 @@ private:
 ```bash
 cmake --build build_macos --config Debug --target xbotogo-falconM --parallel 8
 rg -n 'OBSBasic\.hpp|OBSApp\.hpp|qt-wrappers\.hpp|RemoteTextThread' \
-  plugins/xbotogo-falconM/runtime plugins/xbotogo-falconM/live
+  plugins/xbotgo/runtime plugins/xbotgo/live
 ```
 
 预期：构建成功，扫描无匹配项。
@@ -194,11 +194,11 @@ rg -n 'OBSBasic\.hpp|OBSApp\.hpp|qt-wrappers\.hpp|RemoteTextThread' \
 ### 任务 3：增加 FalconM Source 边界并迁移控制界面
 
 **文件：**
-- 新建：`plugins/xbotogo-falconM/falconm-source-bridge.{cpp,hpp}`
-- 新建：`plugins/xbotogo-falconM/ui/xbotgo-combo-box-control.{cpp,hpp}`
-- 新建：`plugins/xbotogo-falconM/ui/xbotgo-slider-control.{cpp,hpp}`
-- 新建：`plugins/xbotogo-falconM/ui/falconm-control-widget.{cpp,hpp}`
-- 修改：`plugins/xbotogo-falconM/CMakeLists.txt`
+- 新建：`plugins/xbotgo/falconm-source-bridge.{cpp,hpp}`
+- 新建：`plugins/xbotgo/ui/xbotgo-combo-box-control.{cpp,hpp}`
+- 新建：`plugins/xbotgo/ui/xbotgo-slider-control.{cpp,hpp}`
+- 新建：`plugins/xbotgo/ui/falconm-control-widget.{cpp,hpp}`
+- 修改：`plugins/xbotgo/CMakeLists.txt`
 - 参考：`frontend/xbotgo/components/*`
 - 参考：`frontend/xbotgo/sources/*`
 - 参考：`frontend/dialogs/OBSBasicFalconMControl.*`
@@ -246,7 +246,7 @@ void FalconMControlWidget::RefreshState()
 ```bash
 cmake --build build_macos --config Debug --target xbotogo-falconM --parallel 8
 rg -n 'proc_handler_call|\.\./\.\./plugins/' \
-  plugins/xbotogo-falconM/ui plugins/xbotogo-falconM/falconm-source-bridge.*
+  plugins/xbotgo/ui plugins/xbotgo/falconm-source-bridge.*
 ```
 
 预期：构建成功，扫描无匹配项。
@@ -256,12 +256,12 @@ rg -n 'proc_handler_call|\.\./\.\./plugins/' \
 ### 任务 4：迁移摄像机角色场景和自动导播
 
 **文件：**
-- 新建：`plugins/xbotogo-falconM/scenes/camera-role-scenes.{cpp,hpp}`
-- 新建：`plugins/xbotogo-falconM/director/auto-director.{cpp,hpp}`
-- 移动：`frontend/xbotgo/director/XBotGoAutoDirectorPolicy.hpp` 至 `plugins/xbotogo-falconM/director/auto-director-policy.hpp`
-- 移动：`frontend/xbotgo/director/XBotGoAutoDirectorPolicyTest.cpp` 至 `plugins/xbotogo-falconM/director/auto-director-policy-test.cpp`
-- 新建：`plugins/xbotogo-falconM/ui/auto-director-control-widget.{cpp,hpp}`
-- 修改：`plugins/xbotogo-falconM/CMakeLists.txt`
+- 新建：`plugins/xbotgo/scenes/camera-role-scenes.{cpp,hpp}`
+- 新建：`plugins/xbotgo/director/auto-director.{cpp,hpp}`
+- 移动：`frontend/xbotgo/director/XBotGoAutoDirectorPolicy.hpp` 至 `plugins/xbotgo/director/auto-director-policy.hpp`
+- 移动：`frontend/xbotgo/director/XBotGoAutoDirectorPolicyTest.cpp` 至 `plugins/xbotgo/director/auto-director-policy-test.cpp`
+- 新建：`plugins/xbotgo/ui/auto-director-control-widget.{cpp,hpp}`
+- 修改：`plugins/xbotgo/CMakeLists.txt`
 
 **接口：**
 - 使用：`FalconMSourceBridge`。
@@ -299,7 +299,7 @@ cmake --build build_macos --config Debug \
   --target xbotgo-auto-director-policy-test xbotogo-falconM --parallel 8
 ctest --test-dir build_macos -C Debug -R '^xbotgo-auto-director-policy-test$' --output-on-failure
 rg -n 'OBSBasic|OBSApp|qt-wrappers' \
-  plugins/xbotogo-falconM/director plugins/xbotogo-falconM/scenes
+  plugins/xbotgo/director plugins/xbotgo/scenes
 ```
 
 预期：测试和构建通过，扫描无匹配项。
@@ -309,13 +309,13 @@ rg -n 'OBSBasic|OBSApp|qt-wrappers' \
 ### 任务 5：组装插件自有的菜单、Dock 和直播 Runtime
 
 **文件：**
-- 新建：`plugins/xbotogo-falconM/ui/falconm-devices-widget.{cpp,hpp}`
-- 新建：`plugins/xbotogo-falconM/live/live-stream-runtime.{cpp,hpp}`
-- 新建：`plugins/xbotogo-falconM/runtime/xbotgo-plugin-runtime.{cpp,hpp}`
-- 修改：`plugins/xbotogo-falconM/xbotogo-falconM.cpp`
-- 修改：`plugins/xbotogo-falconM/CMakeLists.txt`
-- 修改：`plugins/xbotogo-falconM/data/locale/en-US.ini`
-- 修改：`plugins/xbotogo-falconM/data/locale/zh-CN.ini`
+- 新建：`plugins/xbotgo/ui/falconm-devices-widget.{cpp,hpp}`
+- 新建：`plugins/xbotgo/live/live-stream-runtime.{cpp,hpp}`
+- 新建：`plugins/xbotgo/runtime/xbotgo-plugin-runtime.{cpp,hpp}`
+- 修改：`plugins/xbotgo/xbotogo-falconM.cpp`
+- 修改：`plugins/xbotgo/CMakeLists.txt`
+- 修改：`plugins/xbotgo/data/locale/en-US.ini`
+- 修改：`plugins/xbotgo/data/locale/zh-CN.ini`
 
 **接口：**
 - 使用：设备发现、`FalconMSourceBridge`、控制 Widget、`AutoDirector`、`LiveTaskClient`、`LiveStreamSession` 和 `obs_frontend_*`。
@@ -394,8 +394,8 @@ def keys(path):
         if line.strip() and not line.lstrip().startswith(('#', ';')) and '=' in line
     }
 
-en = keys('plugins/xbotogo-falconM/data/locale/en-US.ini')
-zh = keys('plugins/xbotogo-falconM/data/locale/zh-CN.ini')
+en = keys('plugins/xbotgo/data/locale/en-US.ini')
+zh = keys('plugins/xbotgo/data/locale/zh-CN.ini')
 assert en == zh, sorted(en ^ zh)
 PY
 ```
@@ -438,21 +438,21 @@ PY
 ```cmake
 option(ENABLE_XBOTOGO_FALCONM "Enable the XBotGo FalconM plugin (macOS arm64 only)" ON)
 if(ENABLE_XBOTOGO_FALCONM)
-  add_obs_plugin(xbotogo-falconM PLATFORMS MACOS ARCHITECTURES arm64)
+  add_obs_plugin(xbotgo PLATFORMS MACOS ARCHITECTURES arm64)
 endif()
 ```
 
-这是受支持的禁用边界。保持现有目标名和目录拼写不变。
+这是受支持的禁用边界。源码目录为 `plugins/xbotgo/`，目标名和插件包名保持 `xbotogo-falconM`。
 
 - [x] **步骤 3：更新仓库指引**
 
-编辑 `AGENTS.md` 前调用 `writing-for-agents` 技能。更新 `README.md`、`AGENTS.md` 和三份 FalconM 文档，将 `plugins/xbotogo-falconM/` 描述为 XBotGo 设备发现、前端 UI、直播任务、角色场景和自动导播的唯一所有者。删除对 `shared/xbotgo-device-discovery/` 和 `frontend/xbotgo/` 的过时引用；记录 macOS arm64 限制和 `ENABLE_XBOTOGO_FALCONM=OFF` 用法。
+编辑 `AGENTS.md` 前调用 `writing-for-agents` 技能。更新 `README.md`、`AGENTS.md` 和三份 FalconM 文档，将 `plugins/xbotgo/` 描述为 XBotGo 设备发现、前端 UI、直播任务、角色场景和自动导播的唯一所有者。删除对 `shared/xbotgo-device-discovery/` 和 `frontend/xbotgo/` 的过时引用；记录 macOS arm64 限制和 `ENABLE_XBOTOGO_FALCONM=OFF` 用法。
 
 - [x] **步骤 4：证明插件之外不再存在 XBotGo/FalconM 实现**
 
 ```bash
 rg -n -i 'xbotgo|falconm|falcon-m' \
-  --glob '!plugins/xbotogo-falconM/**' \
+  --glob '!plugins/xbotgo/**' \
   --glob '!docs/superpowers/**' \
   --glob '!docs/*.md' \
   --glob '!README.md' --glob '!AGENTS.md' \
@@ -497,12 +497,12 @@ ctest --test-dir build_macos -C Debug \
 
 ```bash
 git diff --name-only --diff-filter=ACMR 8ef776a17 -- '*.cpp' '*.hpp' '*.h' '*.m' '*.mm' | \
-  rg -v '^plugins/xbotogo-falconM/falconm-stream\.cpp$' | \
+  rg -v '^plugins/xbotgo/falconm-stream\.cpp$' | \
   xargs ./build-aux/run-clang-format --check --fail-error
 git diff --name-only --diff-filter=ACMR 8ef776a17 -- 'CMakeLists.txt' '*.cmake' | \
   xargs ./build-aux/run-gersemi --check --fail-error
 git diff --check 8ef776a17 -- . \
-  ':(exclude)plugins/xbotogo-falconM/falconm-stream.cpp'
+  ':(exclude)plugins/xbotgo/falconm-stream.cpp'
 ```
 
 预期：所有命令均以零状态退出。运行自动写入式格式化前，先检查每份文件列表；不得格式化无关的用户修改。
@@ -524,7 +524,7 @@ git diff --check 8ef776a17 -- . \
 ```bash
 git status --short
 git diff --stat 8ef776a17
-git diff -- plugins/xbotogo-falconM/falconm-stream.cpp
+git diff -- plugins/xbotgo/falconm-stream.cpp
 ```
 
 预期：迁移改动全部可追溯，生成文件/vendor 文件未被修改，用户已有的 `falconm-stream.cpp` 修改仍然存在；迁移过程没有自动暂存或提交任何文件。
