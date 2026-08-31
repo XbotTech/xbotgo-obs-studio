@@ -48,7 +48,7 @@
 
 #include <nlohmann/json.hpp>
 #include <QDesktopServices>
-#include <QMessageBox>
+//#include <QMessageBox>
 
 #ifdef _WIN32
 #include <sstream>

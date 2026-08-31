@@ -172,8 +172,9 @@ X-Protocol-Version: <0-65535>
 - **修改后未生效**：重新构建 `xbotogo-falconM` 与 `obs-studio`，确认运行的是当前构建目录产出的 App。
 
 OBS 日志可从菜单 **帮助 → 日志文件 → 查看当前日志** 打开。XBotGo 直播请求、心跳、停止请求及部分设备发现过程会写入该日志。
-FalconM 的 info 日志由编译宏 `XBOTGO_FALCONM_INFO_LOG_ENABLED` 控制，默认值为 `1`；设为 `0` 可关闭 info
-日志，不影响 warning 和 error 日志。info 日志消息包含精确到毫秒的本地时间。
+FalconM 插件日志统一通过 `xblog` 输出，格式为 `[日期 时间.毫秒] [文件名:行号] [Tag] 类型: 消息`，默认
+Tag 为 `FalconM`。info 日志由编译宏 `XBOTGO_FALCONM_INFO_LOG_ENABLED` 控制，默认值为 `1`；设为 `0`
+可关闭 info 日志，不影响 debug、warning 和 error 日志。
 FalconM Source 创建时会开启渲染帧率日志，销毁时关闭。每个 FalconM 场景项独立统计，每实际渲染 150 帧
 记录一次累计渲染帧数、Source ID、Source 名称、直接所属的 Scene（或 Group）名称和渲染线程 ID；帧率按
 最近 150 帧除以本次日志与上次计时起点之间的时间计算。该统计由 libobs 的场景渲染路径记录，不受插件的
