@@ -1,10 +1,8 @@
 #include "XBotGoDeviceSearchDialog.hpp"
 #include "XBotGoSsdpParser.hpp"
 
-#include <QAbstractItemView>
 #include <QDialogButtonBox>
 #include <QHeaderView>
-#include <QHideEvent>
 #include <QItemSelectionModel>
 #include <QNetworkDatagram>
 #include <QPushButton>
@@ -26,9 +24,9 @@ DeviceSearchDialog::DeviceSearchDialog(QWidget *parent, Mode mode_)
 {
 	deviceTable = new QTableView(this);
 	deviceModel = new QStandardItemModel(0, 9, this);
-	deviceModel->setHorizontalHeaderLabels(
-		{tr("Device ID"), tr("Serial Number"), tr("IP Address"), tr("Subnet Mask"), tr("MAC Address"),
-		 tr("Device Version"), tr("MQTT Port"), tr("Role"), tr("Time Synchronized")});
+	deviceModel->setHorizontalHeaderLabels({tr("Device ID"), tr("Serial Number"), tr("IP Address"),
+						tr("Subnet Mask"), tr("MAC Address"), tr("Device Version"),
+						tr("MQTT Port"), tr("Role"), tr("Time Synchronized")});
 	deviceTable->setModel(deviceModel);
 	deviceTable->setSelectionBehavior(QAbstractItemView::SelectRows);
 	deviceTable->setSelectionMode(QAbstractItemView::SingleSelection);
@@ -77,9 +75,12 @@ DeviceSearchDialog::DeviceSearchDialog(QWidget *parent, Mode mode_)
 	const auto interfaces = QNetworkInterface::allInterfaces();
 	for (const QNetworkInterface &networkInterface : interfaces) {
 		const auto flags = networkInterface.flags();
-		if (!flags.testFlag(QNetworkInterface::IsUp) || !flags.testFlag(QNetworkInterface::IsRunning) ||
-		    !flags.testFlag(QNetworkInterface::CanMulticast) ||
-		    !flags.testFlag(QNetworkInterface::CanBroadcast) || flags.testFlag(QNetworkInterface::IsLoopBack)) {
+		if (!flags.testFlag(QNetworkInterface::IsUp)            // ifconfig up
+		    || !flags.testFlag(QNetworkInterface::IsRunning)    // running
+		    || !flags.testFlag(QNetworkInterface::CanMulticast) // 支持多播
+		    || !flags.testFlag(QNetworkInterface::CanBroadcast) // 支持广播
+		    || flags.testFlag(QNetworkInterface::IsLoopBack)    // 回环接口
+		) {
 			continue;
 		}
 
@@ -195,8 +196,8 @@ void DeviceSearchDialog::updateDevice(const Device &device)
 {
 	const QString unknown = tr("Unknown");
 	const QString timeSynchronized = device.timeSynchronized.has_value()
-					 ? (device.timeSynchronized.value() ? tr("Yes") : tr("No"))
-					 : unknown;
+						 ? (device.timeSynchronized.value() ? tr("Yes") : tr("No"))
+						 : unknown;
 	const QStringList values{device.id,
 				 device.serialNumber.isEmpty() ? unknown : device.serialNumber,
 				 device.ip,

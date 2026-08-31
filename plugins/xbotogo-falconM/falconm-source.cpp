@@ -2,7 +2,7 @@
 #include "falconm-log.hpp"
 
 #ifdef XBOTGO_DEVICE_DISCOVERY
-#include <XBotGoDeviceSearchDialog.hpp>
+#include "device-search/XBotGoDeviceSearchDialog.hpp"
 #include <QApplication>
 #endif
 

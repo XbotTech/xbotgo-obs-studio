@@ -22,8 +22,6 @@ target_sources(
         xbotgo/sources/XBotGoSourceObserver.hpp
 )
 
-target_link_libraries(obs-studio PRIVATE OBS::xbotgo-device-discovery)
-
 if(ENABLE_UNIT_TESTS)
   add_executable(
     xbotgo-auto-director-policy-test

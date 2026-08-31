@@ -18,8 +18,7 @@
 | --- | --- |
 | `libobs/` | OBS 核心库：场景、Source、Output、Encoder、Service 等基础抽象 |
 | `frontend/` | Qt 桌面端；XBotGo 界面与直播逻辑位于 `frontend/xbotgo/` |
-| `plugins/` | OBS 官方插件及业务插件；FalconM 插件位于 `plugins/xbotogo-falconM/` |
-| `shared/xbotgo-device-discovery/` | 可被前端和插件复用的 SSDP 设备发现组件 |
+| `plugins/` | OBS 官方插件及业务插件；FalconM 插件及设备发现实现位于 `plugins/xbotogo-falconM/` |
 | `libobs-opengl/`、`libobs-metal/` | OpenGL 和 Metal 图形后端 |
 | `deps/`、`shared/` | 第三方组件及 OBS 公共组件 |
 | `cmake/`、`build-aux/` | CMake 模块、依赖准备、构建和打包辅助脚本 |
@@ -31,19 +30,16 @@ XBotGo 相关模块的主要调用关系如下：
 ```text
 OBS Qt 前端
 ├── XBotGo 菜单
-│   ├── 设备搜索 ───────┐
-│   └── 开始直播        │
-├── 直播任务服务        │
-│   ├── 获取推/拉流地址 │
-│   ├── 定时心跳        │
-│   └── 停止直播任务    │
-└── FalconM Source 插件 │
-    └── 设备选择 ───────┤
-                        ▼
-             xbotgo-device-discovery
-                        │ SSDP/UDP
-                        ▼
-                   XBotGo 设备
+│   └── 开始直播
+├── 直播任务服务
+│   ├── 获取推/拉流地址
+│   ├── 定时心跳
+│   └── 停止直播任务
+└── FalconM Source 插件
+    └── 设备发现与选择
+        │ SSDP/UDP
+        ▼
+   XBotGo 设备
 ```
 
 ## XBotGo 关键代码入口
@@ -54,8 +50,8 @@ OBS Qt 前端
 | 菜单 UI 定义 | `frontend/forms/OBSBasic.ui` |
 | 直播配置对话框 | `frontend/xbotgo/dialogs/XBotGoLiveStreamConfigDialog.cpp` |
 | 直播任务请求、心跳与停止 | `frontend/xbotgo/services/XBotGoLiveStreamProvider.cpp` |
-| 设备搜索对话框 | `shared/xbotgo-device-discovery/XBotGoDeviceSearchDialog.cpp` |
-| SSDP 响应解析 | `shared/xbotgo-device-discovery/XBotGoSsdpParser.cpp` |
+| 设备搜索对话框 | `plugins/xbotogo-falconM/device-search/XBotGoDeviceSearchDialog.cpp` |
+| SSDP 响应解析 | `plugins/xbotogo-falconM/device-search/XBotGoSsdpParser.cpp` |
 | FalconM Source 注册 | `plugins/xbotogo-falconM/xbotogo-falconM.cpp` |
 | FalconM Source 生命周期 | `plugins/xbotogo-falconM/falconm-source.cpp` |
 | Media SDK 数据接入 | `plugins/xbotogo-falconM/falconm-stream.cpp` |
@@ -103,7 +99,6 @@ cmake --build build_macos_xcode --config Debug --parallel 8
 只验证 XBotGo 相关目标时，可以分别构建：
 
 ```bash
-cmake --build build_macos_xcode --config Debug --target xbotgo-device-discovery --parallel 8
 cmake --build build_macos_xcode --config Debug --target xbotogo-falconM --parallel 8
 cmake --build build_macos_xcode --config Debug --target obs-studio --parallel 8
 ```
@@ -118,10 +113,9 @@ FalconM 默认在每次 `connect()` 时创建并启动一个新 Media SDK Sessio
 ### 搜索设备并添加 FalconM 源
 
 1. 确保 Mac 与 XBotGo 设备位于同一局域网，且网络允许 UDP 组播。
-2. 在 OBS 主菜单选择 **XBotGo → 搜索设备**，确认设备能够被发现。
-3. 在来源面板新增 FalconM/XBotGo 来源。
-4. 在来源属性中选择搜索到的设备，确认设备 ID、IP/Broker 地址和 MQTT 端口。
-5. 选择拉流分辨率（1080p/30、1080p/60 或 4K/30，默认 4K/30），添加来源后检查预览画面及音频电平；隐藏来源不会断开设备连接。
+2. 在来源面板新增 FalconM/XBotGo 来源。
+3. 在来源属性中搜索并选择设备，确认设备 ID、IP/Broker 地址和 MQTT 端口。
+4. 选择拉流分辨率（1080p/30、1080p/60 或 4K/30，默认 4K/30），添加来源后检查预览画面及音频电平；隐藏来源不会断开设备连接。
 
 拉流档位依次对应：1080p/30 为 1920×1080、30 FPS、10 Mbps；1080p/60 为 1920×1080、60 FPS、10 Mbps；
 4K/30 为 3840×2160、30 FPS、52 Mbps。修改档位后 FalconM Source 会重连设备，使新编码参数生效。
@@ -185,9 +179,9 @@ FalconM 设备控制连接成功时会发送一次当前系统时间和时区；
 
 ## 开发约定
 
-- 避免直接修改与需求无关的上游 OBS 代码，业务代码优先放入 `frontend/xbotgo/`、`shared/xbotgo-device-discovery/` 或独立插件目录。
+- 避免直接修改与需求无关的上游 OBS 代码，业务代码优先放入 `frontend/xbotgo/` 或独立插件目录。
 - 新增界面文案时同时维护 `en-US.ini` 和 `zh-CN.ini`。
-- 修改共享接口后，同时构建前端与 FalconM 插件，避免两侧接口不一致。
+- 修改 FalconM 设备发现实现后，构建插件并验证 Source 属性页的设备搜索流程。
 - 不要提交构建目录、用户配置、日志、签名文件、访问令牌或其他敏感信息。
 - C/C++、CMake 和提交信息遵循本仓库的 [代码风格](CODESTYLE.md) 与 [贡献指南](CONTRIBUTING.md)。
 

@@ -6,8 +6,7 @@
 
 这是基于 OBS Studio 的 XBotGo 定制工程。除上游 OBS 的采集、合成、编码、录制和推流能力外，当前业务重点包括：
 
-- `plugins/xbotogo-falconM/`：FalconM Media SDK 音视频源插件，仅面向 macOS arm64。
-- `shared/xbotgo-device-discovery/`：基于 SSDP/UDP 的 XBotGo 设备发现共享库。
+- `plugins/xbotogo-falconM/`：FalconM Media SDK 音视频源插件及其 SSDP/UDP 设备发现实现，仅面向 macOS arm64。
 - `frontend/xbotgo/`：XBotGo 直播配置、直播任务请求、心跳和停止逻辑。
 - `frontend/widgets/OBSBasic*`、`frontend/forms/OBSBasic.ui`：XBotGo 菜单及与 OBS 主流程的集成。
 
@@ -44,7 +43,7 @@
 - SSDP 使用 IPv4 组播 `239.255.255.250:1900`。不要放宽来源地址校验或端口范围校验而不说明安全影响。
 - 设备响应至少需要 `X-Device-ID`、`X-Device-IP`、`X-MQTT-Port` 和 `X-Protocol-Version`。
 - 设备搜索必须容忍重复响应、无效数据包、多网卡、接口消失和对话框关闭。
-- 修改公共 `Device` 结构或搜索 API 后，同时验证前端和 FalconM 插件两个消费者。
+- `Device` 结构、SSDP 解析和搜索对话框是 FalconM 插件私有实现；修改后验证插件属性页的搜索和设备选择流程。
 
 ### Qt 前端与直播任务
 
@@ -86,7 +85,6 @@ cmake --build build_macos --config Debug --parallel 8
 若仓库已有可用的 `build_macos_xcode`，可做增量验证；不要仅为普通源码改动重新生成它：
 
 ```bash
-cmake --build build_macos_xcode --config Debug --target xbotgo-device-discovery --parallel 8
 cmake --build build_macos_xcode --config Debug --target xbotogo-falconM --parallel 8
 cmake --build build_macos_xcode --config Debug --target obs-studio --parallel 8
 ```
@@ -95,8 +93,7 @@ cmake --build build_macos_xcode --config Debug --target obs-studio --parallel 8
 
 | 改动范围 | 至少验证 |
 | --- | --- |
-| `shared/xbotgo-device-discovery/` | `xbotgo-device-discovery`、`xbotogo-falconM`、`obs-studio` |
-| `plugins/xbotogo-falconM/` | `xbotogo-falconM`；涉及公共接口时再构建 `obs-studio` |
+| `plugins/xbotogo-falconM/` | `xbotogo-falconM`；涉及前端集成时再构建 `obs-studio` |
 | `frontend/xbotgo/`、主窗口或 `.ui` | `obs-studio` |
 | `libobs/` 或公共 Source/Scene API | `obs-studio`、受影响插件及相关测试 |
 | CMake 或依赖关系 | 重新配置后构建所有受影响目标 |

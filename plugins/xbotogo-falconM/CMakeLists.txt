@@ -57,9 +57,19 @@ target_link_libraries(xbotogo-falconM PRIVATE
 )
 
 if(ENABLE_FRONTEND)
-  find_package(Qt6 REQUIRED Widgets)
+  find_package(Qt6 REQUIRED Core Network Widgets)
+  target_sources(
+    xbotogo-falconM
+    PRIVATE
+      device-discovery/XBotGoDevice.hpp
+      device-discovery/XBotGoDeviceSearchDialog.cpp
+      device-discovery/XBotGoDeviceSearchDialog.hpp
+      device-discovery/XBotGoSsdpParser.cpp
+      device-discovery/XBotGoSsdpParser.hpp
+  )
   target_compile_definitions(xbotogo-falconM PRIVATE XBOTGO_DEVICE_DISCOVERY XBOTGO_FRONTEND_API)
-  target_link_libraries(xbotogo-falconM PRIVATE OBS::frontend-api OBS::xbotgo-device-discovery Qt::Widgets)
+  target_link_libraries(xbotogo-falconM PRIVATE OBS::frontend-api Qt::Core Qt::Network Qt::Widgets)
+  set_property(TARGET xbotogo-falconM PROPERTY AUTOMOC ON)
 endif()
 
 set_target_properties_obs(xbotogo-falconM PROPERTIES FOLDER plugins)
