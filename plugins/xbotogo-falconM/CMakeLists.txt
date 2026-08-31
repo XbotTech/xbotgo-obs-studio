@@ -15,7 +15,7 @@ add_library(
   falconm-stream.cpp
   falconm-angle-state.hpp
   falconm-time.cpp
-  falconm-log.hpp
+  xblog.hpp
   falconm.hpp
   falconm-stream.hpp
   falconm-time.hpp

@@ -1,4 +1,5 @@
 #include "device-search-dialog.hpp"
+#include "xblog.hpp"
 #include "util/base.h"
 
 #include <QDialogButtonBox>
@@ -107,7 +108,7 @@ void DeviceSearchDialog::initSocket()
 {
 	if (!socket4.bind(QHostAddress::AnyIPv4, SSDP_PORT, QUdpSocket::ShareAddress | QUdpSocket::ReuseAddressHint)) {
 		const std::string error = socket4.errorString().toStdString();
-		blog(LOG_ERROR, "Failed to bind socket: %s", error.c_str());
+		XBLOG_ERROR("Failed to bind socket: %s", error.c_str());
 		return;
 	}
 
@@ -117,12 +118,11 @@ void DeviceSearchDialog::initSocket()
 			const std::string human_readable_name = networkInterface.humanReadableName().toStdString();
 			if (socket4.joinMulticastGroup(group_address4, networkInterface)) {
 				join_multicast_interfaces.append(networkInterface);
-				qDebug() << "Using multicast interface" << human_readable_name.c_str();
-				blog(LOG_DEBUG, "Using multicast interface %s", human_readable_name.c_str());
+				XBLOG_DEBUG("Using multicast interface %s", human_readable_name.c_str());
 			} else {
 				const std::string error = socket4.errorString().toStdString();
-				blog(LOG_WARNING, "Failed to join multicast group on %s: %s",
-				     human_readable_name.c_str(), error.c_str());
+				XBLOG_WARNING("Failed to join multicast group on %s: %s", human_readable_name.c_str(),
+					      error.c_str());
 			}
 		}
 	}
@@ -135,11 +135,11 @@ void DeviceSearchDialog::uninitSocket()
 	for (const QNetworkInterface &networkInterface : join_multicast_interfaces) {
 		const std::string human_readable_name = networkInterface.humanReadableName().toStdString();
 		if (socket4.leaveMulticastGroup(group_address4, networkInterface)) {
-			blog(LOG_DEBUG, "Leaved multicast interface %s", human_readable_name.c_str());
+			XBLOG_DEBUG("Leaved multicast interface %s", human_readable_name.c_str());
 		} else {
 			const std::string error = socket4.errorString().toStdString();
-			blog(LOG_WARNING, "Failed to leave multicast group on %s: %s", human_readable_name.c_str(),
-			     error.c_str());
+			XBLOG_WARNING("Failed to leave multicast group on %s: %s", human_readable_name.c_str(),
+				      error.c_str());
 		}
 	}
 	socket4.close();
