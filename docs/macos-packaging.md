@@ -1,5 +1,7 @@
 # macOS 打包与发布
 
+XBotGo/FalconM 仅支持 macOS arm64，并由 `plugins/xbotogo-falconM/` 完整提供。无需随包提供该功能时，在 CMake 配置阶段使用 `-DENABLE_XBOTOGO_FALCONM=OFF`。
+
 本文记录如何为 XBotGo OBS Studio 生成可安装的 macOS 磁盘映像（DMG），以及内部测试包和正式发布包的签名、公证与验证流程。
 
 ## 支持范围

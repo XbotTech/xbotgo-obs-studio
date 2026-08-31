@@ -186,8 +186,8 @@ OBS 通用 API 说明见：
 
 控制窗口文件：
 
-- `frontend/dialogs/OBSBasicFalconMControl.hpp`
-- `frontend/dialogs/OBSBasicFalconMControl.cpp`
+- `plugins/xbotogo-falconM/ui/falconm-control-widget.hpp`
+- `plugins/xbotogo-falconM/ui/falconm-control-widget.cpp`
 
 窗口每 500ms 调用 `get_motor_angle` 刷新：
 
@@ -227,8 +227,8 @@ source create
 
 新增控制窗口已加入 `frontend/cmake/ui-dialogs.cmake`，并增加了英文和中文方向按钮文本：
 
-- `frontend/data/locale/en-US.ini`
-- `frontend/data/locale/zh-CN.ini`
+- `plugins/xbotogo-falconM/data/locale/en-US.ini`
+- `plugins/xbotogo-falconM/data/locale/zh-CN.ini`
 
 ## 验证状态
 
