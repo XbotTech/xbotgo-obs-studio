@@ -1,7 +1,7 @@
 #include "falconm.hpp"
 #include "falconm-log.hpp"
 
-#include "device-search/XBotGoDeviceSearchDialog.hpp"
+#include "device-search/device-search-dialog.hpp"
 #include <QApplication>
 
 #include <obs-frontend-api.h>
@@ -1115,12 +1115,12 @@ static bool falconm_search_device(obs_properties_t *, obs_property_t *, void *da
 		return false;
 	}
 
-	xbotgo::DeviceSearchDialog dialog(QApplication::activeWindow(), xbotgo::DeviceSearchDialog::Mode::Select);
+	xbotgo::DeviceSearchDialog dialog(QApplication::activeWindow());
 	if (dialog.exec() != QDialog::Accepted) {
 		return false;
 	}
 
-	const std::optional<xbotgo::Device> device = dialog.selectedDevice();
+	const std::optional<xbotgo::DeviceInfo> device = dialog.selectedDevice();
 	if (!device) {
 		return false;
 	}

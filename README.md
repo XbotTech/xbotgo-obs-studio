@@ -49,7 +49,7 @@ XBotGo FalconM 插件
 | XBotGo 菜单、Dock 与运行时 | `plugins/xbotogo-falconM/runtime/xbotgo-plugin-runtime.cpp` |
 | 直播配置对话框 | `plugins/xbotogo-falconM/live/live-stream-config-dialog.cpp` |
 | 直播任务请求、心跳与停止 | `plugins/xbotogo-falconM/live/live-task-client.cpp`、`plugins/xbotogo-falconM/live/live-stream-runtime.cpp` |
-| 设备搜索对话框 | `plugins/xbotogo-falconM/device-search/XBotGoDeviceSearchDialog.cpp` |
+| 设备搜索对话框 | `plugins/xbotogo-falconM/device-search/device-search-dialog.cpp` |
 | SSDP 响应解析 | `plugins/xbotogo-falconM/device-search/XBotGoSsdpParser.cpp` |
 | FalconM Source 注册 | `plugins/xbotogo-falconM/xbotogo-falconM.cpp` |
 | FalconM Source 生命周期 | `plugins/xbotogo-falconM/falconm-source.cpp` |

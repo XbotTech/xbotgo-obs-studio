@@ -62,16 +62,17 @@ LiveTaskClient::~LiveTaskClient()
 	worker_.shutdown();
 }
 
-void LiveTaskClient::requestStart(QObject *context, StartCallback callback)
+void LiveTaskClient::requestStart(QObject *context, const QString &liveTitle, StartCallback callback)
 {
-	if (!context || !callback) {
+	const QString normalizedTitle = liveTitle.trimmed();
+	if (!context || !callback || normalizedTitle.isEmpty()) {
 		return;
 	}
 
 	const QJsonObject requestBody{
 		{QStringLiteral("videoModel"), QStringLiteral("1")},
 		{QStringLiteral("liveType"), 8},
-		{QStringLiteral("liveTitle"), QStringLiteral("多机位直播内测-陆伟")},
+		{QStringLiteral("liveTitle"), normalizedTitle},
 		{QStringLiteral("coverPath"), QString{}},
 		{QStringLiteral("livePassword"), QString{}},
 		{QStringLiteral("extra"), QJsonObject{}},

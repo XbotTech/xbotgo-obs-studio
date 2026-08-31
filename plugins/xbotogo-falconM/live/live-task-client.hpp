@@ -22,7 +22,7 @@ public:
 
 	explicit LiveTaskClient(QObject *parent = nullptr);
 	~LiveTaskClient() override;
-	void requestStart(QObject *context, StartCallback callback);
+	void requestStart(QObject *context, const QString &liveTitle, StartCallback callback);
 	void requestHeartbeat(QObject *context, const QString &taskId, Completion callback);
 	void requestStop(QObject *context, QString taskId, Completion callback = {});
 	void abortAll();
